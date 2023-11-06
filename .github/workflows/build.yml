@@ -1,0 +1,108 @@
+name: Build Project
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: "Build ${{ matrix.platform }} in ${{ matrix.build_type }}"
+    strategy:
+      matrix:
+        platform: [windows, ubuntu, macos]
+        build_type: [Debug, Release]
+    env:
+      PARALLEL: -j 2
+    runs-on: "${{ matrix.platform }}-latest"
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: "recursive"
+      - if: ${{ matrix.platform == 'ubuntu' }}
+        name: Install RandR headers
+        run: |
+          sudo apt-get update
+          sudo apt install xorg-dev libglu1-mesa-dev
+      - if: ${{ matrix.platform == 'windows' }}
+        name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+      - if: ${{ matrix.platform == 'windows' }}
+        name: sccache
+        uses: hendrikmuhs/ccache-action@v1.2.9
+        with:
+          key: ${{ github.job }}-${{ matrix.os }}
+          variant: sccache
+      - if: ${{ matrix.platform != 'windows' }}
+        name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2.9
+        with:
+          key: ${{ github.job }}-${{ matrix.os }}
+      - if: ${{ matrix.platform == 'windows' }}
+        name: Configure and build
+        shell: pwsh
+        run: |
+          cmake -B"build/${{ matrix.platform }}" -G"NMake Makefiles" -DVKB_BUILD_TESTS=ON -DVKB_BUILD_SAMPLES=ON -DCMAKE_C_COMPILER_LAUNCHER=C:\\Users\\runneradmin\\.cargo\\bin\\sccache -DCMAKE_CXX_COMPILER_LAUNCHER=C:\\Users\\runneradmin\\.cargo\\bin\\sccache
+          cmake --build "build/${{ matrix.platform }}" --target vulkan_samples --config ${{ matrix.build_type }}  -j 1
+      - if: ${{ matrix.platform != 'windows' }}
+        name: Configure and build
+        run: |
+          cmake -B"build/${{ matrix.platform }}" -DVKB_BUILD_TESTS=ON -DVKB_BUILD_SAMPLES=ON
+          cmake --build "build/${{ matrix.platform }}" --target vulkan_samples --config ${{ matrix.build_type }} ${{ env.PARALLEL }}
+
+  build_d2d:
+    name: "Build Ubuntu with Direct To Display"
+    env:
+      PARALLEL: -j 2
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: "recursive"
+      - name: Install RandR headers
+        run: |
+          sudo apt-get update
+          sudo apt install xorg-dev libglu1-mesa-dev
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.job }}-${{ matrix.os }}
+      - name: Configure
+        run: cmake -B"build/ubuntu-latest-d2d" -DVKB_BUILD_TESTS=ON -DVKB_BUILD_SAMPLES=ON -DVKB_WSI_SELECTION=D2D
+      - name: "Build Ubuntu in Release with VKB_WSI_SELECTION=D2D"
+        run: cmake --build "build/ubuntu-latest-d2d" --target vulkan_samples --config Release ${{ env.PARALLEL }}
+
+  build_android:
+    name: "Build Android in ${{ matrix.build_type }}"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build_type: [Debug]
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: "recursive"
+
+      - name: set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: "11"
+          distribution: "temurin"
+          cache: gradle
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2.9
+        with:
+          key: ${{ github.job }}-${{ matrix.os }}
+
+      - name: "Run generate script"
+        run: ./scripts/generate.py android
+
+      - name: "Build Android using gradlew."
+        working-directory: build/android_gradle
+        run: NDK_CCACHE=1 NDK_CCACHE_BIN=ccache ./gradlew app:assemble${{ matrix.build_type }} --info
