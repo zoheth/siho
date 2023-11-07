@@ -23,9 +23,9 @@ project(siho LANGUAGES C CXX)
 
 
 set(SRC
-    app.cpp
+    
     main.cpp
-)
+    "src/siho/core/application.h"  "src/siho/core/application.cpp")
 
 source_group("\\" FILES ${SRC})
 
