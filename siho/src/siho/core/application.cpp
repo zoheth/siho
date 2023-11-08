@@ -11,6 +11,46 @@
 namespace siho
 {
 
+	LightingSubpass::LightingSubpass(vkb::RenderContext& render_context, vkb::ShaderSource&& vertex_shader,
+		vkb::ShaderSource&& fragment_shader, vkb::sg::Camera& camera, vkb::sg::Scene& scene,
+		vkb::sg::Camera& shadowmap_camera, std::vector<std::unique_ptr<vkb::RenderTarget>>& shadow_render_targets)
+
+		:vkb::LightingSubpass(render_context, std::move(vertex_shader), std::move(fragment_shader), camera, scene),
+		shadowmap_camera(shadowmap_camera), shadow_render_targets(shadow_render_targets)
+	{
+	}
+
+	void LightingSubpass::prepare()
+	{
+		vkb::LightingSubpass::prepare();
+		VkSamplerCreateInfo shadowmap_sampler_create_info{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+		shadowmap_sampler_create_info.minFilter = VK_FILTER_LINEAR;
+		shadowmap_sampler_create_info.magFilter = VK_FILTER_LINEAR;
+		shadowmap_sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		shadowmap_sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		shadowmap_sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		shadowmap_sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		shadowmap_sampler_create_info.compareEnable = VK_TRUE;
+		shadowmap_sampler_create_info.compareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
+		shadowmap_sampler = std::make_unique<vkb::core::Sampler>(get_render_context().get_device(), shadowmap_sampler_create_info);
+	}
+
+	void LightingSubpass::draw(vkb::CommandBuffer& command_buffer)
+	{
+		ShadowUniform shadow_uniform;
+		shadow_uniform.shadowmap_projection_matrix = vkb::vulkan_style_projection(shadowmap_camera.get_projection()) * shadowmap_camera.get_view();
+
+		auto& shadow_render_target = *shadow_render_targets[get_render_context().get_active_frame_index()];
+		assert(!shadow_render_target.get_views().empty());
+		command_buffer.bind_image(shadow_render_target.get_views().at(0), *shadowmap_sampler, 0, 5, 0);
+
+		auto& render_frame = get_render_context().get_active_frame();
+		vkb::BufferAllocation shadow_buffer = render_frame.allocate_buffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(glm::mat4));
+		command_buffer.bind_buffer(shadow_buffer.get_buffer(), shadow_buffer.get_offset(), shadow_buffer.get_size(), 0, 6, 0);
+		vkb::LightingSubpass::draw(command_buffer);
+	}
+
+
 	bool Application::prepare(const vkb::ApplicationOptions& options)
 	{
 		if (!VulkanSample::prepare(options))
@@ -78,7 +118,7 @@ namespace siho
 
 	void Application::draw_renderpass(vkb::CommandBuffer& command_buffer, vkb::RenderTarget& render_target)
 	{
-		auto &extent = render_target.get_extent();
+		auto& extent = render_target.get_extent();
 
 		VkViewport viewport{};
 		viewport.width = static_cast<float>(extent.width);
@@ -93,7 +133,7 @@ namespace siho
 
 		render_pipeline->draw(command_buffer, render_target);
 
-		if(gui)
+		if (gui)
 		{
 			gui->draw(command_buffer);
 		}

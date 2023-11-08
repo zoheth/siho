@@ -45,6 +45,22 @@ layout(constant_id = 0) const uint DIRECTIONAL_LIGHT_COUNT = 0U;
 layout(constant_id = 1) const uint POINT_LIGHT_COUNT       = 0U;
 layout(constant_id = 2) const uint SPOT_LIGHT_COUNT        = 0U;
 
+layout(set = 0, binding = 5) uniform sampler2DShadow shadowmap_texture;
+
+layout(set = 0, binding = 6) uniform ShadowUniform
+{
+	mat4 light_matrix;
+}
+shadow_uniform;
+
+float calculate_shadow(highp vec3 pos)
+{
+	vec4 projected_coord = shadow_uniform.light_matrix * vec4(pos, 1.0);
+	projected_coord /= projected_coord.w;
+	projected_coord = projected_coord * 0.5 + 0.5;
+	return texture(shadowmap_texture, vec3(projected_coord.xy, projected_coord.z - 0.001));
+}
+
 void main()
 {
 	// Retrieve position from depth
@@ -60,6 +76,10 @@ void main()
 	for (uint i = 0U; i < DIRECTIONAL_LIGHT_COUNT; ++i)
 	{
 		L += apply_directional_light(lights_info.directional_lights[i], normal);
+		if(i==0U)
+		{
+			L *= calculate_shadow();
+		}
 	}
 	for (uint i = 0U; i < POINT_LIGHT_COUNT; ++i)
 	{
