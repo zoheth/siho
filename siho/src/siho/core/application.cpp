@@ -7,6 +7,7 @@
 #include "rendering/subpasses/geometry_subpass.h"
 #include "rendering/subpasses/lighting_subpass.h"
 #include "scene_graph/node.h"
+#include "scene_graph/components/orthographic_camera.h"
 
 namespace siho
 {
@@ -58,6 +59,12 @@ namespace siho
 			return false;
 		}
 
+		shadow_render_targets.resize(get_render_context().get_render_frames().size());
+		for (uint32_t i = 0; i < shadow_render_targets.size(); i++)
+		{
+			shadow_render_targets[i] = create_shadow_render_target(SHADOWMAP_RESOLUTION);
+		}
+
 		std::set<VkImageUsageFlagBits> usage = { VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ,
 			VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT };
 		get_render_context().update_swapchain(usage);
@@ -65,6 +72,17 @@ namespace siho
 		load_scene("scenes/sponza/Sponza01.gltf");
 
 		scene->clear_components<vkb::sg::Light>();
+
+		auto& directional_light = vkb::add_directional_light(*scene, glm::quat({ glm::radians(-30.0f), glm::radians(175.0f),glm::radians(0.0f) }));
+		auto& directional_light_transform = directional_light.get_node()->get_transform();
+		directional_light_transform.set_translation(glm::vec3(-50.0f, 0.0f, 0.0f));
+
+		// Attach a camera component to the light node
+		auto shadowmap_camera_ptr = std::make_unique<vkb::sg::OrthographicCamera>("shadowmap_camera", -850.0f, 850.0f, -800.0f, 800.0f, -1000.0f, 0.0f);
+		shadowmap_camera_ptr->set_node(*directional_light.get_node());
+		shadowmap_camera = shadowmap_camera_ptr.get();
+		directional_light.get_node()->set_component(*shadowmap_camera_ptr);
+		scene->add_component(std::move(shadowmap_camera_ptr));
 
 		auto light_pos = glm::vec3(0.0f, 128.0f, -225.0f);
 		auto light_color = glm::vec3(1.0, 1.0, 1.0);
@@ -98,6 +116,7 @@ namespace siho
 		auto& camera_node = vkb::add_free_camera(*scene, "main_camera", get_render_context().get_surface_extent());
 		camera = dynamic_cast<vkb::sg::PerspectiveCamera*>(&camera_node.get_component<vkb::sg::Camera>());
 
+		shadow_render_pipeline = create_shadow_renderpass();
 		render_pipeline = create_render_pipeline();
 
 		stats->request_stats({ vkb::StatIndex::frame_times });
@@ -108,14 +127,27 @@ namespace siho
 
 	}
 
+	void Application::update(float delta_time)
+	{
+		update_scene(delta_time);
+		update_stats(delta_time);
+		update_gui(delta_time);
+
+		auto& main_command_buffer = render_context->begin();
+
+		auto command_buffers = record_command_buffers(main_command_buffer);
+
+		render_context->submit(command_buffers);
+	}
+
 	void Application::prepare_render_context()
 	{
-		get_render_context().prepare(1, [this](vkb::core::Image&& swapchain_image)
+		get_render_context().prepare(2, [this](vkb::core::Image&& swapchain_image)
 			{
 				return create_render_target(std::move(swapchain_image));
 			});
 	}
-
+#if 0
 	void Application::draw_renderpass(vkb::CommandBuffer& command_buffer, vkb::RenderTarget& render_target)
 	{
 		auto& extent = render_target.get_extent();
@@ -139,6 +171,37 @@ namespace siho
 		}
 
 		command_buffer.end_render_pass();
+	}
+#endif
+
+	std::unique_ptr<vkb::RenderTarget> Application::create_shadow_render_target(uint32_t size) const
+	{
+		VkExtent3D extent{ size, size, 1 };
+
+		vkb::core::Image depth_image{
+			*device,
+			extent,
+			vkb::get_suitable_depth_format(device->get_gpu().get_handle()),
+			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+			VMA_MEMORY_USAGE_GPU_ONLY
+		};
+		std::vector<vkb::core::Image> images;
+		images.push_back(std::move(depth_image));
+		return std::make_unique<vkb::RenderTarget>(std::move(images));
+	}
+
+	std::unique_ptr<vkb::RenderPipeline> Application::create_shadow_renderpass()
+	{
+		auto shadowmap_vs = vkb::ShaderSource{ "shadows/shadowmap.vert" };
+		auto shadowmap_fs = vkb::ShaderSource{ "shadows/shadowmap.frag" };
+		auto scene_subpass = std::make_unique<ShadowSubpass>(get_render_context(), std::move(shadowmap_vs), std::move(shadowmap_fs), *scene, *shadowmap_camera);
+
+		shadow_subpass = scene_subpass.get();
+
+		auto shadowmap_render_pipeline = std::make_unique<vkb::RenderPipeline>();
+		shadowmap_render_pipeline->add_subpass(std::move(scene_subpass));
+
+		return shadowmap_render_pipeline;
 	}
 
 	std::unique_ptr<vkb::RenderTarget> Application::create_render_target(vkb::core::Image&& swapchain_image) const
@@ -211,6 +274,142 @@ namespace siho
 		render_pipeline->set_clear_value(vkb::gbuffer::get_clear_value());
 
 		return render_pipeline;
+	}
+
+	void Application::draw_shadow_pass(vkb::CommandBuffer& command_buffer)
+	{
+		auto& shadow_render_target = *shadow_render_targets[get_render_context().get_active_frame_index()];
+		auto& shadowmap_extent = shadow_render_target.get_extent();
+
+		set_viewport_and_scissor(command_buffer, shadowmap_extent);
+
+		if (command_buffer.level == VK_COMMAND_BUFFER_LEVEL_SECONDARY)
+		{
+			shadow_render_pipeline->draw(command_buffer, shadow_render_target);
+		}
+		else
+		{
+			record_shadow_pass_image_memory_barriers(command_buffer);
+			shadow_render_pipeline->draw(command_buffer, shadow_render_target);
+			command_buffer.end_render_pass();
+		}
+	}
+
+	void Application::draw_main_pass(vkb::CommandBuffer& command_buffer)
+	{
+		auto& render_target = render_context->get_active_frame().get_render_target();
+		auto& extent = render_target.get_extent();
+
+		set_viewport_and_scissor(command_buffer, extent);
+
+		if (command_buffer.level == VK_COMMAND_BUFFER_LEVEL_SECONDARY)
+		{
+			render_pipeline->draw(command_buffer, render_target);
+		}
+		else
+		{
+			record_main_pass_image_memory_barriers(command_buffer);
+			render_pipeline->draw(command_buffer, render_target);
+			command_buffer.end_render_pass();
+			record_present_image_memory_barriers(command_buffer);
+		}
+	}
+
+	std::vector<vkb::CommandBuffer*> Application::record_command_buffers(vkb::CommandBuffer& main_command_buffer)
+	{
+		auto reset_mode = vkb::CommandBuffer::ResetMode::ResetPool;
+		const auto& queue = device->get_queue_by_flags(VK_QUEUE_GRAPHICS_BIT, 0);
+
+		std::vector<vkb::CommandBuffer*> command_buffers;
+		shadow_subpass->set_thread_index(1);
+
+		// auto& scene_command_buffer = render_context->get_active_frame().request_command_buffer(queue, reset_mode, VK_COMMAND_BUFFER_LEVEL_SECONDARY, 0);
+		// auto& shadow_command_buffer = render_context->get_active_frame().request_command_buffer(queue, reset_mode, VK_COMMAND_BUFFER_LEVEL_SECONDARY, 1);
+
+		main_command_buffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		draw_shadow_pass(main_command_buffer);
+		draw_main_pass(main_command_buffer);
+		main_command_buffer.end();
+		command_buffers.push_back(&main_command_buffer);
+
+		return command_buffers;
+	}
+
+	void Application::record_main_pass_image_memory_barriers(vkb::CommandBuffer& command_buffer)
+	{
+		auto& views = render_context->get_active_frame().get_render_target().get_views();
+		{
+			vkb::ImageMemoryBarrier memory_barrier{};
+			memory_barrier.old_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+			memory_barrier.new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			memory_barrier.src_access_mask = 0;
+			memory_barrier.dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			memory_barrier.src_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			memory_barrier.dst_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+			assert(swapchain_attachment_index < views.size());
+			command_buffer.image_memory_barrier(views[swapchain_attachment_index], memory_barrier);
+		}
+
+		{
+			vkb::ImageMemoryBarrier memory_barrier{};
+			memory_barrier.old_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+			memory_barrier.new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			memory_barrier.src_access_mask = 0;
+			memory_barrier.dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+			memory_barrier.src_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+			memory_barrier.dst_stage_mask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+
+			assert(depth_attachment_index < views.size());
+			command_buffer.image_memory_barrier(views[depth_attachment_index], memory_barrier);
+		}
+
+		{
+			assert(shadowmap_attachment_index < shadow_render_targets[render_context->get_active_frame_index()]->get_views().size());
+			auto& shadowmap = shadow_render_targets[render_context->get_active_frame_index()]->get_views()[shadowmap_attachment_index];
+
+			vkb::ImageMemoryBarrier memory_barrier{};
+			memory_barrier.old_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			memory_barrier.new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			memory_barrier.src_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+			memory_barrier.dst_access_mask = VK_ACCESS_SHADER_READ_BIT;
+			memory_barrier.src_stage_mask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+			memory_barrier.dst_stage_mask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+			command_buffer.image_memory_barrier(shadowmap, memory_barrier);
+		}
+	}
+
+	void Application::record_shadow_pass_image_memory_barriers(vkb::CommandBuffer& command_buffer)
+	{
+		assert(shadowmap_attachment_index < shadow_render_targets[render_context->get_active_frame_index()]->get_views().size());
+		auto& shadowmap = shadow_render_targets[render_context->get_active_frame_index()]->get_views()[shadowmap_attachment_index];
+
+		vkb::ImageMemoryBarrier memory_barrier{};
+		memory_barrier.old_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+		memory_barrier.new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		memory_barrier.src_access_mask = 0;
+		memory_barrier.dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		memory_barrier.src_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		memory_barrier.dst_stage_mask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+
+		command_buffer.image_memory_barrier(shadowmap, memory_barrier);
+	}
+
+	void Application::record_present_image_memory_barriers(vkb::CommandBuffer& command_buffer)
+	{
+		auto& views = render_context->get_active_frame().get_render_target().get_views();
+		{
+			vkb::ImageMemoryBarrier memory_barrier{};
+			memory_barrier.old_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			memory_barrier.new_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			memory_barrier.src_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+			memory_barrier.src_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			memory_barrier.dst_stage_mask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+
+			assert(swapchain_attachment_index < views.size());
+			command_buffer.image_memory_barrier(views[swapchain_attachment_index], memory_barrier);
+		}
 	}
 }
 

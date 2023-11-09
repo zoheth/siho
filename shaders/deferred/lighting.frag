@@ -78,7 +78,7 @@ void main()
 		L += apply_directional_light(lights_info.directional_lights[i], normal);
 		if(i==0U)
 		{
-			L *= calculate_shadow();
+			L *= calculate_shadow(pos);
 		}
 	}
 	for (uint i = 0U; i < POINT_LIGHT_COUNT; ++i)

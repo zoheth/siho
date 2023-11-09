@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ctpl_stl.h"
 #include "platform/application.h"
 #include "vulkan_sample.h"
 #include "scene_graph/components/perspective_camera.h"
@@ -38,18 +39,35 @@ namespace siho
 		Application() = default;
 		
 		bool prepare(const vkb::ApplicationOptions &options) override;
+		void update(float delta_time) override;
 
 		virtual ~Application() = default;
 	private:
 		void prepare_render_context() override;
-		void draw_renderpass(vkb::CommandBuffer& command_buffer, vkb::RenderTarget& render_target) override;
+		// void draw_renderpass(vkb::CommandBuffer& command_buffer, vkb::RenderTarget& render_target) override;
+
+		std::unique_ptr<vkb::RenderTarget> create_shadow_render_target(uint32_t size) const;
+		std::unique_ptr<vkb::RenderPipeline> create_shadow_renderpass();
 
 		std::unique_ptr<vkb::RenderTarget> create_render_target(vkb::core::Image&& swapchain_image) const;
 		std::unique_ptr<vkb::RenderPipeline> create_render_pipeline();
+
+		void draw_shadow_pass(vkb::CommandBuffer& command_buffer);
+		void draw_main_pass(vkb::CommandBuffer& command_buffer);
+
+		std::vector<vkb::CommandBuffer*> record_command_buffers(vkb::CommandBuffer& main_command_buffer);
+
+		void record_main_pass_image_memory_barriers(vkb::CommandBuffer& command_buffer);
+		void record_shadow_pass_image_memory_barriers(vkb::CommandBuffer& command_buffer);
+		void record_present_image_memory_barriers(vkb::CommandBuffer& command_buffer);
 	private:
 		std::unique_ptr<vkb::RenderPipeline> render_pipeline{};
 		vkb::sg::PerspectiveCamera* camera{};
 
+		ctpl::thread_pool thread_pool{ 1 };
+		uint32_t swapchain_attachment_index{ 0 };
+		uint32_t depth_attachment_index{ 1 };
+		uint32_t shadowmap_attachment_index{ 0 };
 		// shadow
 		const uint32_t SHADOWMAP_RESOLUTION{ 1024 };
 
