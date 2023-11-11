@@ -350,6 +350,11 @@ namespace siho
 
 			assert(swapchain_attachment_index < views.size());
 			command_buffer.image_memory_barrier(views[swapchain_attachment_index], memory_barrier);
+			// Skip 1 as it is handled later as a depth-stencil attachment
+			for (size_t i = 2; i < views.size(); ++i)
+			{
+				command_buffer.image_memory_barrier(views[i], memory_barrier);
+			}
 		}
 
 		{
@@ -371,7 +376,7 @@ namespace siho
 
 			vkb::ImageMemoryBarrier memory_barrier{};
 			memory_barrier.old_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-			memory_barrier.new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			memory_barrier.new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			memory_barrier.src_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 			memory_barrier.dst_access_mask = VK_ACCESS_SHADER_READ_BIT;
 			memory_barrier.src_stage_mask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
