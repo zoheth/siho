@@ -47,6 +47,7 @@ namespace siho
 
 		auto& render_frame = get_render_context().get_active_frame();
 		vkb::BufferAllocation shadow_buffer = render_frame.allocate_buffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(glm::mat4));
+		shadow_buffer.update(shadow_uniform);
 		command_buffer.bind_buffer(shadow_buffer.get_buffer(), shadow_buffer.get_offset(), shadow_buffer.get_size(), 0, 6, 0);
 		vkb::LightingSubpass::draw(command_buffer);
 	}
@@ -73,9 +74,9 @@ namespace siho
 
 		scene->clear_components<vkb::sg::Light>();
 
-		auto& directional_light = vkb::add_directional_light(*scene, glm::quat({ glm::radians(-30.0f), glm::radians(175.0f),glm::radians(0.0f) }));
+		auto& directional_light = vkb::add_directional_light(*scene, glm::quat({ glm::radians(-30.0f), glm::radians(-90.0f), glm::radians(0.0f) }));
 		auto& directional_light_transform = directional_light.get_node()->get_transform();
-		directional_light_transform.set_translation(glm::vec3(-50.0f, 0.0f, 0.0f));
+		directional_light_transform.set_translation(glm::vec3(0, 0, -400));
 
 		// Attach a camera component to the light node
 		auto shadowmap_camera_ptr = std::make_unique<vkb::sg::OrthographicCamera>("shadowmap_camera", -850.0f, 850.0f, -800.0f, 800.0f, -1000.0f, 0.0f);
@@ -260,7 +261,7 @@ namespace siho
 
 		auto lighting_vs = vkb::ShaderSource{ "deferred/lighting.vert" };
 		auto lighting_fs = vkb::ShaderSource{ "deferred/lighting.frag" };
-		auto lighting_subpass = std::make_unique<vkb::LightingSubpass>(get_render_context(), std::move(lighting_vs), std::move(lighting_fs), *camera, *scene);
+		auto lighting_subpass = std::make_unique<LightingSubpass>(get_render_context(), std::move(lighting_vs), std::move(lighting_fs), *camera, *scene,*shadowmap_camera, shadow_render_targets);
 
 		lighting_subpass->set_input_attachments({ 1, 2, 3 });
 
@@ -341,7 +342,7 @@ namespace siho
 		{
 			vkb::ImageMemoryBarrier memory_barrier{};
 			memory_barrier.old_layout = VK_IMAGE_LAYOUT_UNDEFINED;
-			memory_barrier.new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			memory_barrier.new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 			memory_barrier.src_access_mask = 0;
 			memory_barrier.dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 			memory_barrier.src_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -370,7 +371,7 @@ namespace siho
 
 			vkb::ImageMemoryBarrier memory_barrier{};
 			memory_barrier.old_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-			memory_barrier.new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			memory_barrier.new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 			memory_barrier.src_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 			memory_barrier.dst_access_mask = VK_ACCESS_SHADER_READ_BIT;
 			memory_barrier.src_stage_mask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;

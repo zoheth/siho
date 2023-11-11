@@ -67,6 +67,8 @@ void main()
 	vec4  clip         = vec4(in_uv * 2.0 - 1.0, subpassLoad(i_depth).x, 1.0);
 	highp vec4 world_w = global_uniform.inv_view_proj * clip;
 	highp vec3 pos     = world_w.xyz / world_w.w;
+	o_color = vec4(vec3(calculate_shadow(pos)), 1.0);
+	return;
 	vec4 albedo = subpassLoad(i_albedo);
 	// Transform from [0,1] to [-1,1]
 	vec3 normal = subpassLoad(i_normal).xyz;
