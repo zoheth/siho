@@ -7,6 +7,7 @@
 #include "rendering/subpasses/lighting_subpass.h"
 
 #include "shadow_subpass.h"
+#include "scene_graph/components/orthographic_camera.h"
 
 namespace siho
 {
@@ -40,7 +41,7 @@ namespace siho
 		
 		bool prepare(const vkb::ApplicationOptions &options) override;
 		void update(float delta_time) override;
-
+		void draw_gui() override;
 		virtual ~Application() = default;
 	private:
 		void prepare_render_context() override;
@@ -74,7 +75,7 @@ namespace siho
 		std::vector<std::unique_ptr<vkb::RenderTarget>> shadow_render_targets;
 		std::unique_ptr<vkb::RenderPipeline> shadow_render_pipeline{};
 		ShadowSubpass* shadow_subpass{};
-		vkb::sg::Camera* shadowmap_camera{};
+		vkb::sg::OrthographicCamera* shadowmap_camera{};
 
 
 		VkFormat          albedo_format{ VK_FORMAT_R8G8B8A8_UNORM };

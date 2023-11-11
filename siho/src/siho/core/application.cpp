@@ -1,5 +1,6 @@
 #include "application.h"
 #include "common/vk_common.h"
+#include "glm/gtc/type_ptr.hpp"
 
 #include "rendering/pipeline_state.h"
 #include "rendering/render_context.h"
@@ -7,7 +8,6 @@
 #include "rendering/subpasses/geometry_subpass.h"
 #include "rendering/subpasses/lighting_subpass.h"
 #include "scene_graph/node.h"
-#include "scene_graph/components/orthographic_camera.h"
 
 namespace siho
 {
@@ -74,12 +74,12 @@ namespace siho
 
 		scene->clear_components<vkb::sg::Light>();
 
-		auto& directional_light = vkb::add_directional_light(*scene, glm::quat({ glm::radians(-30.0f), glm::radians(-90.0f), glm::radians(0.0f) }));
+		auto& directional_light = vkb::add_directional_light(*scene, glm::quat({ glm::radians(-30.0f), glm::radians(-85.0f), glm::radians(0.0f) }));
 		auto& directional_light_transform = directional_light.get_node()->get_transform();
 		directional_light_transform.set_translation(glm::vec3(0, 0, -400));
 
 		// Attach a camera component to the light node
-		auto shadowmap_camera_ptr = std::make_unique<vkb::sg::OrthographicCamera>("shadowmap_camera", -850.0f, 850.0f, -800.0f, 800.0f, -1000.0f, 0.0f);
+		auto shadowmap_camera_ptr = std::make_unique<vkb::sg::OrthographicCamera>("shadowmap_camera", -850.0f, 850.0f, -800.0f, 800.0f, -1000.0f, 1500.0f);
 		shadowmap_camera_ptr->set_node(*directional_light.get_node());
 		shadowmap_camera = shadowmap_camera_ptr.get();
 		directional_light.get_node()->set_component(*shadowmap_camera_ptr);
@@ -141,6 +141,59 @@ namespace siho
 		render_context->submit(command_buffers);
 	}
 
+	void Application::draw_gui()
+	{
+		const bool landscape = camera->get_aspect_ratio() > 1.0f;
+		uint32_t lines = 6;
+
+
+		gui->show_options_window(
+			[this]() {
+				ImGui::AlignTextToFramePadding();
+				ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.4f);
+
+				auto directional_light = scene->get_components<vkb::sg::Light>()[0];
+				auto& transform = directional_light->get_node()->get_transform();
+				glm::quat rotation = transform.get_rotation();
+				glm::vec3 euler_angles = glm::eulerAngles(rotation);
+				float pitch_limit = 89.0f;
+				euler_angles.y = glm::clamp(euler_angles.y, -pitch_limit, pitch_limit);
+				euler_angles = glm::degrees(euler_angles);
+
+				if (ImGui::DragFloat3("Rotation", glm::value_ptr(euler_angles), 0.1f, -180.0f, 180.0f))
+				{
+					euler_angles.y = glm::clamp(euler_angles.y, -pitch_limit, pitch_limit);
+					euler_angles = glm::radians(euler_angles);
+					transform.set_rotation(glm::quat(euler_angles));
+				}
+				glm::vec3 position = transform.get_translation();
+				if (ImGui::DragFloat3("Position", &position.x))
+				{
+					transform.set_translation(position);
+				}
+
+				float orthoParams[6] = { shadowmap_camera->get_left(), shadowmap_camera->get_right(),
+										shadowmap_camera->get_bottom(), shadowmap_camera->get_top(),
+										shadowmap_camera->get_near_plane(), shadowmap_camera->get_far_plane() };
+
+				if (ImGui::DragFloat4("Ortho Params (Left/Right/Bottom/Top)", orthoParams))
+				{
+					shadowmap_camera->set_left(orthoParams[0]);
+					shadowmap_camera->set_right(orthoParams[1]);
+					shadowmap_camera->set_bottom(orthoParams[2]);
+					shadowmap_camera->set_top(orthoParams[3]);
+				}
+
+				if (ImGui::DragFloat2("Ortho Params (Near/Far)", &orthoParams[4]))
+				{
+					shadowmap_camera->set_near_plane(orthoParams[4]);
+					shadowmap_camera->set_far_plane(orthoParams[5]);
+				}
+				ImGui::PopItemWidth();
+			},
+			lines);
+	}
+
 	void Application::prepare_render_context()
 	{
 		get_render_context().prepare(2, [this](vkb::core::Image&& swapchain_image)
@@ -148,32 +201,6 @@ namespace siho
 				return create_render_target(std::move(swapchain_image));
 			});
 	}
-#if 0
-	void Application::draw_renderpass(vkb::CommandBuffer& command_buffer, vkb::RenderTarget& render_target)
-	{
-		auto& extent = render_target.get_extent();
-
-		VkViewport viewport{};
-		viewport.width = static_cast<float>(extent.width);
-		viewport.height = static_cast<float>(extent.height);
-		viewport.minDepth = 0.0f;
-		viewport.maxDepth = 1.0f;
-		command_buffer.set_viewport(0, { viewport });
-
-		VkRect2D scissor{};
-		scissor.extent = extent;
-		command_buffer.set_scissor(0, { scissor });
-
-		render_pipeline->draw(command_buffer, render_target);
-
-		if (gui)
-		{
-			gui->draw(command_buffer);
-		}
-
-		command_buffer.end_render_pass();
-	}
-#endif
 
 	std::unique_ptr<vkb::RenderTarget> Application::create_shadow_render_target(uint32_t size) const
 	{
@@ -311,9 +338,15 @@ namespace siho
 		{
 			record_main_pass_image_memory_barriers(command_buffer);
 			render_pipeline->draw(command_buffer, render_target);
+			if (gui)
+			{
+				gui->draw(command_buffer);
+			}
 			command_buffer.end_render_pass();
 			record_present_image_memory_barriers(command_buffer);
 		}
+
+
 	}
 
 	std::vector<vkb::CommandBuffer*> Application::record_command_buffers(vkb::CommandBuffer& main_command_buffer)
