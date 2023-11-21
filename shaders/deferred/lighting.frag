@@ -24,6 +24,11 @@ layout(input_attachment_index = 2, binding = 2) uniform subpassInput i_normal;
 layout(location = 0) in vec2 in_uv;
 layout(location = 0) out vec4 o_color;
 
+layout(push_constant, std430) uniform CascadeUniform
+{
+	vec4 far_d;
+} cascade_uniform;
+
 layout(set = 0, binding = 3) uniform GlobalUniform
 {
     mat4 inv_view_proj;
@@ -65,10 +70,24 @@ void main()
 {
 	// Retrieve position from depth
 	vec4  clip         = vec4(in_uv * 2.0 - 1.0, subpassLoad(i_depth).x, 1.0);
+
 	highp vec4 world_w = global_uniform.inv_view_proj * clip;
 	highp vec3 pos     = world_w.xyz / world_w.w;
 
 	vec4 albedo = subpassLoad(i_albedo);
+	if(subpassLoad(i_depth).x > cascade_uniform.far_d.x)
+	{
+		albedo= vec4(0.8,0.2,0.3,1);
+	}
+	else if(subpassLoad(i_depth).x > cascade_uniform.far_d.y)
+	{
+		albedo= vec4(0.2,0.8,0.3,1);
+	}
+	else if(subpassLoad(i_depth).x > cascade_uniform.far_d.z)
+	{
+		albedo= vec4(0.2,0.3,0.8,1);
+	}
+
 	// Transform from [0,1] to [-1,1]
 	vec3 normal = subpassLoad(i_normal).xyz;
 	normal      = normalize(2.0 * normal - 1.0);

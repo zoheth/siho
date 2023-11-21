@@ -66,8 +66,10 @@ class LightingSubpass : public Subpass
 
 	void draw(CommandBuffer &command_buffer) override;
 
-  private:
+  protected:
 	sg::Camera &camera;
+
+  private:
 
 	sg::Scene &scene;
 

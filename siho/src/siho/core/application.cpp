@@ -38,6 +38,7 @@ namespace siho
 
 	void LightingSubpass::draw(vkb::CommandBuffer& command_buffer)
 	{
+		command_buffer.push_constants(ShadowRenderPass::get_cascade_splits(dynamic_cast<const vkb::sg::PerspectiveCamera&>(camera)));
 		ShadowUniform shadow_uniform;
 		shadow_uniform.shadowmap_projection_matrix = vkb::vulkan_style_projection(shadowmap_camera.get_projection()) * shadowmap_camera.get_view();
 
@@ -74,16 +75,16 @@ namespace siho
 
 		scene->clear_components<vkb::sg::Light>();
 
-		auto& directional_light = vkb::add_directional_light(*scene, glm::quat({ glm::radians(-30.0f), glm::radians(-85.0f), glm::radians(0.0f) }));
-		auto& directional_light_transform = directional_light.get_node()->get_transform();
-		directional_light_transform.set_translation(glm::vec3(0, 0, -400));
+		auto& directional_light = vkb::add_directional_light(*scene, glm::quat({ glm::radians(-43.0f), glm::radians(-89.0f), glm::radians(-43.0f) }));
+		//auto& directional_light_transform = directional_light.get_node()->get_transform();
+		//directional_light_transform.set_translation(glm::vec3(0, 0, -400));
 
 		// Attach a camera component to the light node
-		auto shadowmap_camera_ptr = std::make_unique<vkb::sg::OrthographicCamera>("shadowmap_camera", -850.0f, 850.0f, -800.0f, 800.0f, -1000.0f, 1500.0f);
+		/*auto shadowmap_camera_ptr = std::make_unique<vkb::sg::OrthographicCamera>("shadowmap_camera", -850.0f, 850.0f, -800.0f, 800.0f, -1000.0f, 1500.0f);
 		shadowmap_camera_ptr->set_node(*directional_light.get_node());
 		shadowmap_camera = shadowmap_camera_ptr.get();
 		directional_light.get_node()->set_component(*shadowmap_camera_ptr);
-		scene->add_component(std::move(shadowmap_camera_ptr));
+		scene->add_component(std::move(shadowmap_camera_ptr));*/
 
 		auto light_pos = glm::vec3(0.0f, 128.0f, -225.0f);
 		auto light_color = glm::vec3(1.0, 1.0, 1.0);
@@ -116,6 +117,11 @@ namespace siho
 
 		auto& camera_node = vkb::add_free_camera(*scene, "main_camera", get_render_context().get_surface_extent());
 		camera = dynamic_cast<vkb::sg::PerspectiveCamera*>(&camera_node.get_component<vkb::sg::Camera>());
+
+		
+		ShadowRenderPass a;
+		a.init(get_render_context(), *scene, *camera, directional_light);
+		shadowmap_camera = a.get_light_camera();
 
 		shadow_render_pipeline = create_shadow_renderpass();
 		render_pipeline = create_render_pipeline();
@@ -288,7 +294,7 @@ namespace siho
 
 		auto lighting_vs = vkb::ShaderSource{ "deferred/lighting.vert" };
 		auto lighting_fs = vkb::ShaderSource{ "deferred/lighting.frag" };
-		auto lighting_subpass = std::make_unique<LightingSubpass>(get_render_context(), std::move(lighting_vs), std::move(lighting_fs), *camera, *scene,*shadowmap_camera, shadow_render_targets);
+		auto lighting_subpass = std::make_unique<LightingSubpass>(get_render_context(), std::move(lighting_vs), std::move(lighting_fs), *camera, *scene, *shadowmap_camera, shadow_render_targets);
 
 		lighting_subpass->set_input_attachments({ 1, 2, 3 });
 

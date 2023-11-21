@@ -70,7 +70,7 @@ namespace siho
 		uint32_t depth_attachment_index{ 1 };
 		uint32_t shadowmap_attachment_index{ 0 };
 		// shadow
-		const uint32_t SHADOWMAP_RESOLUTION{ 1024 };
+		const uint32_t SHADOWMAP_RESOLUTION{ 2048 };
 
 		std::vector<std::unique_ptr<vkb::RenderTarget>> shadow_render_targets;
 		std::unique_ptr<vkb::RenderPipeline> shadow_render_pipeline{};
