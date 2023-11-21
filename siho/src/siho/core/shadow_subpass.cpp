@@ -75,7 +75,8 @@ namespace siho
 	void ShadowRenderPass::init(vkb::RenderContext& render_context, vkb::sg::Scene& scene,
 		vkb::sg::PerspectiveCamera& camera, vkb::sg::Light& light)
 	{
-		auto light_camera_ptr = create_light_camera(camera, light);
+		auto light_camera_ptr = std::make_unique<vkb::sg::OrthographicCamera>("shadowmap_camera");
+		update_light_camera(*light_camera_ptr, camera, light);
 		light_camera_ptr->set_node(*light.get_node());
 		light_camera_ = light_camera_ptr.get();
 		light.get_node()->set_component(*light_camera_ptr);
@@ -92,7 +93,8 @@ namespace siho
 		return splits;
 	}
 
-	std::unique_ptr<vkb::sg::OrthographicCamera> ShadowRenderPass::create_light_camera(vkb::sg::PerspectiveCamera& camera, vkb::sg::Light& light)
+	void ShadowRenderPass::update_light_camera(vkb::sg::OrthographicCamera& light_camera,
+		vkb::sg::PerspectiveCamera& camera, vkb::sg::Light& light)
 	{
 		glm::mat4 inverse_view_projection = glm::inverse(vkb::vulkan_style_projection(camera.get_projection()) * camera.get_view());
 		std::vector<glm::vec3> corners(8);
@@ -109,8 +111,6 @@ namespace siho
 		}
 
 		auto& light_transform = light.get_node()->get_transform();
-		glm::vec3 light_direction = glm::rotate(light_transform.get_rotation(), light.get_properties().direction);
-
 
 		glm::mat4 light_view_mat = glm::inverse(light_transform.get_world_matrix());
 
@@ -127,12 +127,12 @@ namespace siho
 			max_bounds = glm::max(max_bounds, corner);
 		}
 
-		auto shadowmap_camera_ptr = std::make_unique<vkb::sg::OrthographicCamera>("shadowmap_camera",
-			min_bounds.x, max_bounds.x,
-			min_bounds.y, max_bounds.y,
-			min_bounds.z, max_bounds.z);
+		light_camera.set_left(min_bounds.x);
+		light_camera.set_right(max_bounds.x);
+		light_camera.set_bottom(min_bounds.y);
+		light_camera.set_top(max_bounds.y);
+		light_camera.set_near_plane(min_bounds.z);
+		light_camera.set_far_plane(max_bounds.z);
 
-
-		return shadowmap_camera_ptr;
 	}
 }

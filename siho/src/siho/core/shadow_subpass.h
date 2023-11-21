@@ -35,8 +35,7 @@ namespace siho
 
 		static glm::vec4 get_cascade_splits(const vkb::sg::PerspectiveCamera& camera);
 
-	private:
-		std::unique_ptr<vkb::sg::OrthographicCamera> create_light_camera(vkb::sg::PerspectiveCamera& camera, vkb::sg::Light& light);
+		static void update_light_camera(vkb::sg::OrthographicCamera& light_camera, vkb::sg::PerspectiveCamera& camera, vkb::sg::Light& light);
 
 	private:
 		vkb::sg::OrthographicCamera* light_camera_{};

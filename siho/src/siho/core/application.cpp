@@ -76,6 +76,7 @@ namespace siho
 		scene->clear_components<vkb::sg::Light>();
 
 		auto& directional_light = vkb::add_directional_light(*scene, glm::quat({ glm::radians(-43.0f), glm::radians(-89.0f), glm::radians(-43.0f) }));
+		directional_light_ = &directional_light;
 		//auto& directional_light_transform = directional_light.get_node()->get_transform();
 		//directional_light_transform.set_translation(glm::vec3(0, 0, -400));
 
@@ -139,6 +140,8 @@ namespace siho
 		update_scene(delta_time);
 		update_stats(delta_time);
 		update_gui(delta_time);
+
+		ShadowRenderPass::update_light_camera(*shadowmap_camera, *camera, *directional_light_);
 
 		auto& main_command_buffer = render_context->begin();
 

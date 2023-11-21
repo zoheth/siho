@@ -76,6 +76,7 @@ namespace siho
 		std::unique_ptr<vkb::RenderPipeline> shadow_render_pipeline{};
 		ShadowSubpass* shadow_subpass{};
 		vkb::sg::OrthographicCamera* shadowmap_camera{};
+		vkb::sg::Light* directional_light_;
 
 
 		VkFormat          albedo_format{ VK_FORMAT_R8G8B8A8_UNORM };
