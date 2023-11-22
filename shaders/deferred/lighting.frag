@@ -66,6 +66,39 @@ float calculate_shadow(highp vec3 pos)
 	return texture(shadowmap_texture, vec3(projected_coord.xy, projected_coord.z));
 }
 
+vec3 triA = vec3(-94.0617065, 553.773804, -624.006897);
+vec3 triB = vec3(-171.528931, 553.772522, -659.814880);
+vec3 triC = vec3(-83.2467575, -183.583023, -626.244934);
+
+bool pointInTriangle(vec3 p, vec3 a, vec3 b, vec3 c)
+{
+	vec3 v0 = c - a;
+	vec3 v1 = b - a;
+	vec3 v2 = p - a;
+
+	float dot00 = dot(v0, v0);
+	float dot01 = dot(v0, v1);
+	float dot02 = dot(v0, v2);
+	float dot11 = dot(v1, v1);
+	float dot12 = dot(v1, v2);
+
+	float inverDeno = 1.0 / (dot00 * dot11 - dot01 * dot01);
+
+	float u = (dot11 * dot02 - dot01 * dot12) * inverDeno;
+	if (u < 0 || u > 1) // if u out of range, return directly
+	{
+		return false;
+	}
+
+	float v = (dot00 * dot12 - dot01 * dot02) * inverDeno;
+	if (v < 0 || v > 1) // if v out of range, return directly
+	{
+		return false;
+	}
+
+	return u + v <= 1;
+}
+
 void main()
 {
 	// Retrieve position from depth
@@ -73,6 +106,17 @@ void main()
 
 	highp vec4 world_w = global_uniform.inv_view_proj * clip;
 	highp vec3 pos     = world_w.xyz / world_w.w;
+
+//	 if (pointInTriangle(pos, triA, triB, triC)) {
+//        // 在三角形内，显示白色
+//        o_color = vec4(1.0, 1.0, 1.0, 1.0);
+//		return;
+//    }
+//	else {
+//		// 不在三角形内，显示黑色
+//		o_color = vec4(0.0, 0.0, 0.0, 1.0);
+//		return;
+//	}
 
 	vec4 albedo = subpassLoad(i_albedo);
 	if(subpassLoad(i_depth).x > cascade_uniform.far_d.x)

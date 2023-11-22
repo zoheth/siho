@@ -3,7 +3,7 @@
 #include "scene_graph/components/orthographic_camera.h"
 #include "rendering/subpass.h"
 
-namespace 
+namespace
 {
 	float calculate_cascade_split_depth(unsigned int cascade_index, unsigned int total_cascades, const vkb::sg::PerspectiveCamera& camera, float lambda = 0.5) {
 		float n = camera.get_near_plane();
@@ -22,7 +22,7 @@ namespace
 		// The near and far planes are inverted in the projection matrix for precision reasons,
 		// so we invert them here as well to match that convention.
 		return n / (n - f) -
-			( f * n) / ((n - f) * c);
+			(f * n) / ((n - f) * c);
 	}
 }
 
@@ -40,6 +40,7 @@ namespace siho
 		vkb::RasterizationState rasterization_state{};
 		rasterization_state.front_face = front_face;
 		rasterization_state.depth_bias_enable = VK_TRUE;
+		rasterization_state.depth_clamp_enable = VK_TRUE;
 
 		if (double_sided_material)
 		{
@@ -76,8 +77,8 @@ namespace siho
 		vkb::sg::PerspectiveCamera& camera, vkb::sg::Light& light)
 	{
 		auto light_camera_ptr = std::make_unique<vkb::sg::OrthographicCamera>("shadowmap_camera");
-		update_light_camera(*light_camera_ptr, camera, light);
 		light_camera_ptr->set_node(*light.get_node());
+		update_light_camera(*light_camera_ptr, camera, light);
 		light_camera_ = light_camera_ptr.get();
 		light.get_node()->set_component(*light_camera_ptr);
 		scene.add_component(std::move(light_camera_ptr));
@@ -104,15 +105,20 @@ namespace siho
 				(i & 1) ? 1.0f : -1.0f,
 				(i & 2) ? 1.0f : -1.0f,
 				(i & 4) ? 1.0f : calculate_cascade_split_depth(1, 3, camera),
+				//(i & 4) ? 1.0f : 0.0f,
 				1.0f);
 
 			glm::vec4 world_corner = inverse_view_projection * homogenous_corner;
 			corners[i] = glm::vec3(world_corner) / world_corner.w;
 		}
 
-		auto& light_transform = light.get_node()->get_transform();
+		glm::mat4 invert_y = glm::mat4(
+			1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, -1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, 1.0f);
 
-		glm::mat4 light_view_mat = glm::inverse(light_transform.get_world_matrix());
+		glm::mat4 light_view_mat = invert_y * light_camera.get_view();
 
 		for (auto& corner : corners)
 		{

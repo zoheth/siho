@@ -165,13 +165,9 @@ namespace siho
 				auto& transform = directional_light->get_node()->get_transform();
 				glm::quat rotation = transform.get_rotation();
 				glm::vec3 euler_angles = glm::eulerAngles(rotation);
-				float pitch_limit = 89.0f;
-				euler_angles.y = glm::clamp(euler_angles.y, -pitch_limit, pitch_limit);
-				euler_angles = glm::degrees(euler_angles);
 
 				if (ImGui::DragFloat3("Rotation", glm::value_ptr(euler_angles), 0.1f, -180.0f, 180.0f))
 				{
-					euler_angles.y = glm::clamp(euler_angles.y, -pitch_limit, pitch_limit);
 					euler_angles = glm::radians(euler_angles);
 					transform.set_rotation(glm::quat(euler_angles));
 				}
