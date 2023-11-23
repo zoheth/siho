@@ -41,7 +41,7 @@ if(ANDROID)
 
     add_library(${PROJECT_NAME} SHARED ${SRC})
 else()
-    add_executable(${PROJECT_NAME} WIN32 ${SRC} ${SHADER_FILES} "src/siho/core/shadow_subpass.cpp" "src/siho/core/shadow_subpass.h")
+    add_executable(${PROJECT_NAME} WIN32 ${SRC} ${SHADER_FILES} "src/siho/core/shadow_pass.cpp" "src/siho/core/shadow_pass.h")
 endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE vkb__core framework)

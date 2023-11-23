@@ -6,15 +6,11 @@
 #include "scene_graph/components/perspective_camera.h"
 #include "rendering/subpasses/lighting_subpass.h"
 
-#include "shadow_subpass.h"
+#include "shadow_pass.h"
 #include "scene_graph/components/orthographic_camera.h"
 
 namespace siho
 {
-	struct alignas(16) ShadowUniform
-	{
-		glm::mat4 shadowmap_projection_matrix;        // Projection matrix used to render shadowmap
-	};
 
 	class LightingSubpass : public vkb::LightingSubpass
 	{
@@ -24,14 +20,12 @@ namespace siho
 			vkb::ShaderSource&& fragment_shader, 
 			vkb::sg::Camera& camera, 
 			vkb::sg::Scene& scene, 
-			vkb::sg::Camera& shadowmap_camera,
-			std::vector<std::unique_ptr<vkb::RenderTarget>>& shadow_render_targets);
+			ShadowRenderPass& shadow_render_pass);
 		void prepare() override;
 		void draw(vkb::CommandBuffer& command_buffer) override;
 	private:
 		std::unique_ptr<vkb::core::Sampler> shadowmap_sampler{};
-		vkb::sg::Camera& shadowmap_camera;
-		std::vector<std::unique_ptr<vkb::RenderTarget>>& shadow_render_targets;
+		ShadowRenderPass& shadow_render_pass_;
 	};
 
 	class Application : public vkb::VulkanSample
@@ -48,18 +42,16 @@ namespace siho
 		// void draw_renderpass(vkb::CommandBuffer& command_buffer, vkb::RenderTarget& render_target) override;
 
 		std::unique_ptr<vkb::RenderTarget> create_shadow_render_target(uint32_t size) const;
-		std::unique_ptr<vkb::RenderPipeline> create_shadow_renderpass();
+		//std::unique_ptr<vkb::RenderPipeline> create_shadow_renderpass();
 
 		std::unique_ptr<vkb::RenderTarget> create_render_target(vkb::core::Image&& swapchain_image) const;
 		std::unique_ptr<vkb::RenderPipeline> create_render_pipeline();
 
-		void draw_shadow_pass(vkb::CommandBuffer& command_buffer);
 		void draw_main_pass(vkb::CommandBuffer& command_buffer);
 
 		std::vector<vkb::CommandBuffer*> record_command_buffers(vkb::CommandBuffer& main_command_buffer);
 
 		void record_main_pass_image_memory_barriers(vkb::CommandBuffer& command_buffer);
-		void record_shadow_pass_image_memory_barriers(vkb::CommandBuffer& command_buffer);
 		void record_present_image_memory_barriers(vkb::CommandBuffer& command_buffer);
 	private:
 		std::unique_ptr<vkb::RenderPipeline> render_pipeline{};
@@ -68,14 +60,17 @@ namespace siho
 		ctpl::thread_pool thread_pool{ 1 };
 		uint32_t swapchain_attachment_index{ 0 };
 		uint32_t depth_attachment_index{ 1 };
-		uint32_t shadowmap_attachment_index{ 0 };
-		// shadow
-		const uint32_t SHADOWMAP_RESOLUTION{ 2048 };
 
-		std::vector<std::unique_ptr<vkb::RenderTarget>> shadow_render_targets;
-		std::unique_ptr<vkb::RenderPipeline> shadow_render_pipeline{};
-		ShadowSubpass* shadow_subpass{};
-		vkb::sg::OrthographicCamera* shadowmap_camera{};
+		//uint32_t shadowmap_attachment_index{ 0 };
+		// shadow
+		// const uint32_t SHADOWMAP_RESOLUTION{ 2048 };
+
+		// std::vector<std::unique_ptr<vkb::RenderTarget>> shadow_render_targets;
+		// std::unique_ptr<vkb::RenderPipeline> shadow_render_pipeline{};
+		// ShadowSubpass* shadow_subpass{};
+		// vkb::sg::OrthographicCamera* shadowmap_camera{};
+		ShadowRenderPass shadow_render_pass_;
+
 		vkb::sg::Light* directional_light_;
 
 

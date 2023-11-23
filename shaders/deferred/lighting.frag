@@ -50,54 +50,47 @@ layout(constant_id = 0) const uint DIRECTIONAL_LIGHT_COUNT = 0U;
 layout(constant_id = 1) const uint POINT_LIGHT_COUNT       = 0U;
 layout(constant_id = 2) const uint SPOT_LIGHT_COUNT        = 0U;
 
+//layout(set = 0, binding = 5) uniform sampler2DShadow shadowmap_texture0;
+//
+//layout(set = 0, binding = 6) uniform ShadowUniform
+//{
+//	mat4 light_matrix;
+//}
+//shadow_uniform0;
+
 layout(set = 0, binding = 5) uniform sampler2DShadow shadowmap_texture;
 
-layout(set = 0, binding = 6) uniform ShadowUniform
-{
-	mat4 light_matrix;
-}
-shadow_uniform;
+struct ShadowUniform {
+    mat4 light_matrix;
+};
 
-float calculate_shadow(highp vec3 pos)
+layout(set = 0, binding = 6) uniform ShadowUniformBlock {
+    ShadowUniform shadows;
+} shadow_uniform;
+
+
+//layout(set = 0, binding = 5) uniform sampler2DArrayShadow shadowmap_textures;
+//
+//struct ShadowUniform {
+//    mat4 light_matrix;
+//};
+//
+//layout(set = 0, binding = 6) uniform ShadowUniformBlock {
+//    ShadowUniform shadows[3];
+//} shadow_uniforms;
+//
+float calculate_shadow(highp vec3 pos, uint i)
 {
-	vec4 projected_coord = shadow_uniform.light_matrix * vec4(pos, 1.0);
+	vec4 projected_coord = shadow_uniform.shadows.light_matrix * vec4(pos, 1.0);
 	projected_coord /= projected_coord.w;
 	projected_coord.xy = 0.5 * projected_coord.xy + 0.5;
 	return texture(shadowmap_texture, vec3(projected_coord.xy, projected_coord.z));
+//	vec4 projected_coord = shadow_uniforms.shadows[0].light_matrix * vec4(pos, 1.0);
+//	projected_coord /= projected_coord.w;
+//	projected_coord.xy = 0.5 * projected_coord.xy + 0.5;
+//	return texture(shadowmap_textures[0], vec3(projected_coord.xy, projected_coord.z));
 }
 
-vec3 triA = vec3(-94.0617065, 553.773804, -624.006897);
-vec3 triB = vec3(-171.528931, 553.772522, -659.814880);
-vec3 triC = vec3(-83.2467575, -183.583023, -626.244934);
-
-bool pointInTriangle(vec3 p, vec3 a, vec3 b, vec3 c)
-{
-	vec3 v0 = c - a;
-	vec3 v1 = b - a;
-	vec3 v2 = p - a;
-
-	float dot00 = dot(v0, v0);
-	float dot01 = dot(v0, v1);
-	float dot02 = dot(v0, v2);
-	float dot11 = dot(v1, v1);
-	float dot12 = dot(v1, v2);
-
-	float inverDeno = 1.0 / (dot00 * dot11 - dot01 * dot01);
-
-	float u = (dot11 * dot02 - dot01 * dot12) * inverDeno;
-	if (u < 0 || u > 1) // if u out of range, return directly
-	{
-		return false;
-	}
-
-	float v = (dot00 * dot12 - dot01 * dot02) * inverDeno;
-	if (v < 0 || v > 1) // if v out of range, return directly
-	{
-		return false;
-	}
-
-	return u + v <= 1;
-}
 
 void main()
 {
@@ -107,28 +100,22 @@ void main()
 	highp vec4 world_w = global_uniform.inv_view_proj * clip;
 	highp vec3 pos     = world_w.xyz / world_w.w;
 
-//	 if (pointInTriangle(pos, triA, triB, triC)) {
-//        // 在三角形内，显示白色
-//        o_color = vec4(1.0, 1.0, 1.0, 1.0);
-//		return;
-//    }
-//	else {
-//		// 不在三角形内，显示黑色
-//		o_color = vec4(0.0, 0.0, 0.0, 1.0);
-//		return;
-//	}
 
 	vec4 albedo = subpassLoad(i_albedo);
+	uint cascade_i;
 	if(subpassLoad(i_depth).x > cascade_uniform.far_d.x)
 	{
+		cascade_i = 0;
 		albedo= vec4(0.8,0.2,0.3,1);
 	}
 	else if(subpassLoad(i_depth).x > cascade_uniform.far_d.y)
 	{
+		cascade_i = 1;
 		albedo= vec4(0.2,0.8,0.3,1);
 	}
 	else if(subpassLoad(i_depth).x > cascade_uniform.far_d.z)
 	{
+		cascade_i = 2;
 		albedo= vec4(0.2,0.3,0.8,1);
 	}
 
@@ -142,7 +129,7 @@ void main()
 		L += apply_directional_light(lights_info.directional_lights[i], normal);
 		if(i==0U)
 		{
-			L *= calculate_shadow(pos);
+			L *= calculate_shadow(pos, cascade_i);
 		}
 	}
 	for (uint i = 0U; i < POINT_LIGHT_COUNT; ++i)

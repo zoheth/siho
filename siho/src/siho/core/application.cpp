@@ -14,42 +14,37 @@ namespace siho
 
 	LightingSubpass::LightingSubpass(vkb::RenderContext& render_context, vkb::ShaderSource&& vertex_shader,
 		vkb::ShaderSource&& fragment_shader, vkb::sg::Camera& camera, vkb::sg::Scene& scene,
-		vkb::sg::Camera& shadowmap_camera, std::vector<std::unique_ptr<vkb::RenderTarget>>& shadow_render_targets)
+		ShadowRenderPass& shadow_render_pass)
 
 		:vkb::LightingSubpass(render_context, std::move(vertex_shader), std::move(fragment_shader), camera, scene),
-		shadowmap_camera(shadowmap_camera), shadow_render_targets(shadow_render_targets)
+		shadow_render_pass_(shadow_render_pass)
 	{
 	}
 
 	void LightingSubpass::prepare()
 	{
 		vkb::LightingSubpass::prepare();
-		VkSamplerCreateInfo shadowmap_sampler_create_info{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
-		shadowmap_sampler_create_info.minFilter = VK_FILTER_LINEAR;
-		shadowmap_sampler_create_info.magFilter = VK_FILTER_LINEAR;
-		shadowmap_sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-		shadowmap_sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-		shadowmap_sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-		shadowmap_sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		shadowmap_sampler_create_info.compareEnable = VK_TRUE;
-		shadowmap_sampler_create_info.compareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
-		shadowmap_sampler = std::make_unique<vkb::core::Sampler>(get_render_context().get_device(), shadowmap_sampler_create_info);
+		shadowmap_sampler = ShadowRenderPass::create_shadowmap_sampler(get_render_context());
 	}
 
 	void LightingSubpass::draw(vkb::CommandBuffer& command_buffer)
 	{
 		command_buffer.push_constants(ShadowRenderPass::get_cascade_splits(dynamic_cast<const vkb::sg::PerspectiveCamera&>(camera)));
-		ShadowUniform shadow_uniform;
-		shadow_uniform.shadowmap_projection_matrix = vkb::vulkan_style_projection(shadowmap_camera.get_projection()) * shadowmap_camera.get_view();
+		
 
-		auto& shadow_render_target = *shadow_render_targets[get_render_context().get_active_frame_index()];
-		assert(!shadow_render_target.get_views().empty());
-		command_buffer.bind_image(shadow_render_target.get_views().at(0), *shadowmap_sampler, 0, 5, 0);
+		command_buffer.bind_image(shadow_render_pass_.get_shadowmap_view(0), *shadowmap_sampler, 0, 5, 0);
+		/*command_buffer.bind_image(shadow_render_pass_.get_shadowmap_view(1), *shadowmap_sampler, 0, 5, 1);
+		command_buffer.bind_image(shadow_render_pass_.get_shadowmap_view(2), *shadowmap_sampler, 0, 5, 2);*/
 
 		auto& render_frame = get_render_context().get_active_frame();
 		vkb::BufferAllocation shadow_buffer = render_frame.allocate_buffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(glm::mat4));
-		shadow_buffer.update(shadow_uniform);
+		shadow_buffer.update(shadow_render_pass_.get_shadow_uniform(0));
 		command_buffer.bind_buffer(shadow_buffer.get_buffer(), shadow_buffer.get_offset(), shadow_buffer.get_size(), 0, 6, 0);
+
+		/*shadow_buffer.update(shadow_render_pass_.get_shadow_uniform(1));
+		command_buffer.bind_buffer(shadow_buffer.get_buffer(), shadow_buffer.get_offset(), shadow_buffer.get_size(), 0, 6, 1);
+		shadow_buffer.update(shadow_render_pass_.get_shadow_uniform(2));
+		command_buffer.bind_buffer(shadow_buffer.get_buffer(), shadow_buffer.get_offset(), shadow_buffer.get_size(), 0, 6, 2);*/
 		vkb::LightingSubpass::draw(command_buffer);
 	}
 
@@ -59,12 +54,6 @@ namespace siho
 		if (!VulkanSample::prepare(options))
 		{
 			return false;
-		}
-
-		shadow_render_targets.resize(get_render_context().get_render_frames().size());
-		for (uint32_t i = 0; i < shadow_render_targets.size(); i++)
-		{
-			shadow_render_targets[i] = create_shadow_render_target(SHADOWMAP_RESOLUTION);
 		}
 
 		std::set<VkImageUsageFlagBits> usage = { VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ,
@@ -119,12 +108,8 @@ namespace siho
 		auto& camera_node = vkb::add_free_camera(*scene, "main_camera", get_render_context().get_surface_extent());
 		camera = dynamic_cast<vkb::sg::PerspectiveCamera*>(&camera_node.get_component<vkb::sg::Camera>());
 
-		
-		ShadowRenderPass a;
-		a.init(get_render_context(), *scene, *camera, directional_light);
-		shadowmap_camera = a.get_light_camera();
+		shadow_render_pass_.init(get_render_context(), *scene, *camera, directional_light);
 
-		shadow_render_pipeline = create_shadow_renderpass();
 		render_pipeline = create_render_pipeline();
 
 		stats->request_stats({ vkb::StatIndex::frame_times });
@@ -141,7 +126,7 @@ namespace siho
 		update_stats(delta_time);
 		update_gui(delta_time);
 
-		ShadowRenderPass::update_light_camera(*shadowmap_camera, *camera, *directional_light_);
+		shadow_render_pass_.update();
 
 		auto& main_command_buffer = render_context->begin();
 
@@ -177,23 +162,6 @@ namespace siho
 					transform.set_translation(position);
 				}
 
-				float orthoParams[6] = { shadowmap_camera->get_left(), shadowmap_camera->get_right(),
-										shadowmap_camera->get_bottom(), shadowmap_camera->get_top(),
-										shadowmap_camera->get_near_plane(), shadowmap_camera->get_far_plane() };
-
-				if (ImGui::DragFloat4("Ortho Params (Left/Right/Bottom/Top)", orthoParams))
-				{
-					shadowmap_camera->set_left(orthoParams[0]);
-					shadowmap_camera->set_right(orthoParams[1]);
-					shadowmap_camera->set_bottom(orthoParams[2]);
-					shadowmap_camera->set_top(orthoParams[3]);
-				}
-
-				if (ImGui::DragFloat2("Ortho Params (Near/Far)", &orthoParams[4]))
-				{
-					shadowmap_camera->set_near_plane(orthoParams[4]);
-					shadowmap_camera->set_far_plane(orthoParams[5]);
-				}
 				ImGui::PopItemWidth();
 			},
 			lines);
@@ -211,7 +179,21 @@ namespace siho
 	{
 		VkExtent3D extent{ size, size, 1 };
 
-		vkb::core::Image depth_image{
+		vkb::core::Image depth_image0{
+			*device,
+			extent,
+			vkb::get_suitable_depth_format(device->get_gpu().get_handle()),
+			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+			VMA_MEMORY_USAGE_GPU_ONLY
+		};
+		vkb::core::Image depth_image1{
+			*device,
+			extent,
+			vkb::get_suitable_depth_format(device->get_gpu().get_handle()),
+			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+			VMA_MEMORY_USAGE_GPU_ONLY
+		};
+		vkb::core::Image depth_image2{
 			*device,
 			extent,
 			vkb::get_suitable_depth_format(device->get_gpu().get_handle()),
@@ -219,22 +201,10 @@ namespace siho
 			VMA_MEMORY_USAGE_GPU_ONLY
 		};
 		std::vector<vkb::core::Image> images;
-		images.push_back(std::move(depth_image));
+		images.push_back(std::move(depth_image0));
+		images.push_back(std::move(depth_image1));
+		images.push_back(std::move(depth_image2));
 		return std::make_unique<vkb::RenderTarget>(std::move(images));
-	}
-
-	std::unique_ptr<vkb::RenderPipeline> Application::create_shadow_renderpass()
-	{
-		auto shadowmap_vs = vkb::ShaderSource{ "shadows/shadowmap.vert" };
-		auto shadowmap_fs = vkb::ShaderSource{ "shadows/shadowmap.frag" };
-		auto scene_subpass = std::make_unique<ShadowSubpass>(get_render_context(), std::move(shadowmap_vs), std::move(shadowmap_fs), *scene, *shadowmap_camera);
-
-		shadow_subpass = scene_subpass.get();
-
-		auto shadowmap_render_pipeline = std::make_unique<vkb::RenderPipeline>();
-		shadowmap_render_pipeline->add_subpass(std::move(scene_subpass));
-
-		return shadowmap_render_pipeline;
 	}
 
 	std::unique_ptr<vkb::RenderTarget> Application::create_render_target(vkb::core::Image&& swapchain_image) const
@@ -293,7 +263,7 @@ namespace siho
 
 		auto lighting_vs = vkb::ShaderSource{ "deferred/lighting.vert" };
 		auto lighting_fs = vkb::ShaderSource{ "deferred/lighting.frag" };
-		auto lighting_subpass = std::make_unique<LightingSubpass>(get_render_context(), std::move(lighting_vs), std::move(lighting_fs), *camera, *scene, *shadowmap_camera, shadow_render_targets);
+		auto lighting_subpass = std::make_unique<LightingSubpass>(get_render_context(), std::move(lighting_vs), std::move(lighting_fs), *camera, *scene, shadow_render_pass_);
 
 		lighting_subpass->set_input_attachments({ 1, 2, 3 });
 
@@ -307,25 +277,6 @@ namespace siho
 		render_pipeline->set_clear_value(vkb::gbuffer::get_clear_value());
 
 		return render_pipeline;
-	}
-
-	void Application::draw_shadow_pass(vkb::CommandBuffer& command_buffer)
-	{
-		auto& shadow_render_target = *shadow_render_targets[get_render_context().get_active_frame_index()];
-		auto& shadowmap_extent = shadow_render_target.get_extent();
-
-		set_viewport_and_scissor(command_buffer, shadowmap_extent);
-
-		if (command_buffer.level == VK_COMMAND_BUFFER_LEVEL_SECONDARY)
-		{
-			shadow_render_pipeline->draw(command_buffer, shadow_render_target);
-		}
-		else
-		{
-			record_shadow_pass_image_memory_barriers(command_buffer);
-			shadow_render_pipeline->draw(command_buffer, shadow_render_target);
-			command_buffer.end_render_pass();
-		}
 	}
 
 	void Application::draw_main_pass(vkb::CommandBuffer& command_buffer)
@@ -360,13 +311,13 @@ namespace siho
 		const auto& queue = device->get_queue_by_flags(VK_QUEUE_GRAPHICS_BIT, 0);
 
 		std::vector<vkb::CommandBuffer*> command_buffers;
-		shadow_subpass->set_thread_index(1);
+		// shadow_subpass->set_thread_index(1);
 
 		// auto& scene_command_buffer = render_context->get_active_frame().request_command_buffer(queue, reset_mode, VK_COMMAND_BUFFER_LEVEL_SECONDARY, 0);
 		// auto& shadow_command_buffer = render_context->get_active_frame().request_command_buffer(queue, reset_mode, VK_COMMAND_BUFFER_LEVEL_SECONDARY, 1);
 
 		main_command_buffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-		draw_shadow_pass(main_command_buffer);
+		shadow_render_pass_.draw(main_command_buffer);
 		draw_main_pass(main_command_buffer);
 		main_command_buffer.end();
 		command_buffers.push_back(&main_command_buffer);
@@ -409,8 +360,10 @@ namespace siho
 		}
 
 		{
-			assert(shadowmap_attachment_index < shadow_render_targets[render_context->get_active_frame_index()]->get_views().size());
-			auto& shadowmap = shadow_render_targets[render_context->get_active_frame_index()]->get_views()[shadowmap_attachment_index];
+
+			auto& shadowmap_views0 = shadow_render_pass_.get_shadow_render_targets(0)[render_context->get_active_frame_index()]->get_views();
+			auto& shadowmap_views1 = shadow_render_pass_.get_shadow_render_targets(1)[render_context->get_active_frame_index()]->get_views();
+			auto& shadowmap_views2 = shadow_render_pass_.get_shadow_render_targets(2)[render_context->get_active_frame_index()]->get_views();
 
 			vkb::ImageMemoryBarrier memory_barrier{};
 			memory_barrier.old_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -420,24 +373,21 @@ namespace siho
 			memory_barrier.src_stage_mask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
 			memory_barrier.dst_stage_mask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 
-			command_buffer.image_memory_barrier(shadowmap, memory_barrier);
+			for (const auto& shadowmap : shadowmap_views0)
+			{
+				command_buffer.image_memory_barrier(shadowmap, memory_barrier);
+			}
+
+			for (const auto& shadowmap : shadowmap_views1)
+			{
+				command_buffer.image_memory_barrier(shadowmap, memory_barrier);
+			}
+
+			for (const auto& shadowmap : shadowmap_views2)
+			{
+				command_buffer.image_memory_barrier(shadowmap, memory_barrier);
+			}
 		}
-	}
-
-	void Application::record_shadow_pass_image_memory_barriers(vkb::CommandBuffer& command_buffer)
-	{
-		assert(shadowmap_attachment_index < shadow_render_targets[render_context->get_active_frame_index()]->get_views().size());
-		auto& shadowmap = shadow_render_targets[render_context->get_active_frame_index()]->get_views()[shadowmap_attachment_index];
-
-		vkb::ImageMemoryBarrier memory_barrier{};
-		memory_barrier.old_layout = VK_IMAGE_LAYOUT_UNDEFINED;
-		memory_barrier.new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		memory_barrier.src_access_mask = 0;
-		memory_barrier.dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		memory_barrier.src_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		memory_barrier.dst_stage_mask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-
-		command_buffer.image_memory_barrier(shadowmap, memory_barrier);
 	}
 
 	void Application::record_present_image_memory_barriers(vkb::CommandBuffer& command_buffer)
