@@ -15,6 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+ #define SHADOW_MAP_CASCADE_COUNT 3
+
 precision highp float;
 
 layout(input_attachment_index = 0, binding = 0) uniform subpassInput i_depth;
@@ -52,12 +55,8 @@ layout(constant_id = 2) const uint SPOT_LIGHT_COUNT        = 0U;
 
 layout(set = 0, binding = 5) uniform sampler2DArrayShadow shadowmap_texture;
 
-struct ShadowUniform {
-    mat4 light_matrix;
-};
-
-layout(set = 0, binding = 6) uniform ShadowUniformBlock {
-    ShadowUniform shadows;
+layout(set = 0, binding = 6) uniform ShadowUniform {
+    mat4 light_matrix[SHADOW_MAP_CASCADE_COUNT];
 } shadow_uniform;
 
 
@@ -73,10 +72,10 @@ layout(set = 0, binding = 6) uniform ShadowUniformBlock {
 //
 float calculate_shadow(highp vec3 pos, uint i)
 {
-	vec4 projected_coord = shadow_uniform.shadows.light_matrix * vec4(pos, 1.0);
+	vec4 projected_coord = shadow_uniform.light_matrix[i] * vec4(pos, 1.0);
 	projected_coord /= projected_coord.w;
 	projected_coord.xy = 0.5 * projected_coord.xy + 0.5;
-	return texture(shadowmap_texture, vec4(projected_coord.xy, 0, projected_coord.z));
+	return texture(shadowmap_texture, vec4(projected_coord.xy, i, projected_coord.z));
 //	vec4 projected_coord = shadow_uniforms.shadows[0].light_matrix * vec4(pos, 1.0);
 //	projected_coord /= projected_coord.w;
 //	projected_coord.xy = 0.5 * projected_coord.xy + 0.5;
@@ -98,17 +97,17 @@ void main()
 	if(subpassLoad(i_depth).x > cascade_uniform.far_d.x)
 	{
 		cascade_i = 0;
-		albedo= vec4(0.8,0.2,0.3,1);
+		// albedo= vec4(0.8,0.2,0.3,1);
 	}
 	else if(subpassLoad(i_depth).x > cascade_uniform.far_d.y)
 	{
 		cascade_i = 1;
-		albedo= vec4(0.2,0.8,0.3,1);
+		// albedo= vec4(0.2,0.8,0.3,1);
 	}
 	else if(subpassLoad(i_depth).x > cascade_uniform.far_d.z)
 	{
 		cascade_i = 2;
-		albedo= vec4(0.2,0.3,0.8,1);
+		// albedo= vec4(0.2,0.3,0.8,1);
 	}
 
 	// Transform from [0,1] to [-1,1]

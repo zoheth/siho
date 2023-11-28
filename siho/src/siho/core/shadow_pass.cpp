@@ -121,10 +121,13 @@ namespace siho
 		}
 	}
 
-	ShadowUniform ShadowRenderPass::get_shadow_uniform(uint32_t i) const
+	ShadowUniform ShadowRenderPass::get_shadow_uniform() const
 	{
 		ShadowUniform uniform;
-		uniform.shadowmap_projection_matrix = vkb::vulkan_style_projection(cascades_[i].light_camera->get_projection()) * cascades_[i].light_camera->get_view();
+		for(uint32_t i = 0; i < kCascadeCount; i++)
+		{
+			uniform.shadowmap_projection_matrix[i] = vkb::vulkan_style_projection(cascades_[i].light_camera->get_projection()) * cascades_[i].light_camera->get_view();
+		}
 		return uniform;
 	}
 

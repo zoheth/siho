@@ -33,18 +33,11 @@ namespace siho
 		
 
 		command_buffer.bind_image(shadow_render_pass_.get_shadowmaps_view(), *shadowmap_sampler, 0, 5, 0);
-		/*command_buffer.bind_image(shadow_render_pass_.get_shadowmap_view(1), *shadowmap_sampler, 0, 5, 1);
-		command_buffer.bind_image(shadow_render_pass_.get_shadowmap_view(2), *shadowmap_sampler, 0, 5, 2);*/
 
 		auto& render_frame = get_render_context().get_active_frame();
-		vkb::BufferAllocation shadow_buffer = render_frame.allocate_buffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(glm::mat4));
-		shadow_buffer.update(shadow_render_pass_.get_shadow_uniform(0));
+		vkb::BufferAllocation shadow_buffer = render_frame.allocate_buffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(ShadowUniform));
+		shadow_buffer.update(shadow_render_pass_.get_shadow_uniform());
 		command_buffer.bind_buffer(shadow_buffer.get_buffer(), shadow_buffer.get_offset(), shadow_buffer.get_size(), 0, 6, 0);
-
-		/*shadow_buffer.update(shadow_render_pass_.get_shadow_uniform(1));
-		command_buffer.bind_buffer(shadow_buffer.get_buffer(), shadow_buffer.get_offset(), shadow_buffer.get_size(), 0, 6, 1);
-		shadow_buffer.update(shadow_render_pass_.get_shadow_uniform(2));
-		command_buffer.bind_buffer(shadow_buffer.get_buffer(), shadow_buffer.get_offset(), shadow_buffer.get_size(), 0, 6, 2);*/
 		vkb::LightingSubpass::draw(command_buffer);
 	}
 
@@ -138,7 +131,7 @@ namespace siho
 	void Application::draw_gui()
 	{
 		const bool landscape = camera->get_aspect_ratio() > 1.0f;
-		uint32_t lines = 6;
+		uint32_t lines = 2;
 
 
 		gui->show_options_window(
@@ -149,17 +142,15 @@ namespace siho
 				auto directional_light = scene->get_components<vkb::sg::Light>()[0];
 				auto& transform = directional_light->get_node()->get_transform();
 				glm::quat rotation = transform.get_rotation();
-				glm::vec3 euler_angles = glm::eulerAngles(rotation);
 
-				if (ImGui::DragFloat3("Rotation", glm::value_ptr(euler_angles), 0.1f, -180.0f, 180.0f))
-				{
-					euler_angles = glm::radians(euler_angles);
-					transform.set_rotation(glm::quat(euler_angles));
-				}
-				glm::vec3 position = transform.get_translation();
-				if (ImGui::DragFloat3("Position", &position.x))
-				{
-					transform.set_translation(position);
+				float angle = glm::degrees(glm::angle(rotation));
+				glm::vec3 axis = glm::axis(rotation);
+
+				if (ImGui::DragFloat3("Axis", glm::value_ptr(axis), 0.01f, -1.0f, 1.0f) ||
+					ImGui::DragFloat("Angle", &angle, 0.1f, -360.0f, 360.0f)) {
+					angle = glm::radians(angle);
+					rotation = glm::angleAxis(angle, glm::normalize(axis));
+					transform.set_rotation(rotation);
 				}
 
 				ImGui::PopItemWidth();

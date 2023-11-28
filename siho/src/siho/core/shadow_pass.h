@@ -11,7 +11,7 @@ namespace siho
 {
 	struct alignas(16) ShadowUniform
 	{
-		glm::mat4 shadowmap_projection_matrix;        // Projection matrix used to render shadowmap
+		std::array<glm::mat4, kCascadeCount> shadowmap_projection_matrix;        // Projection matrix used to render shadowmap
 	};
 
 	class ShadowSubpass : public vkb::GeometrySubpass
@@ -59,7 +59,7 @@ namespace siho
 			return cascades_[cascade_index].shadow_render_targets;
 		}
 
-		ShadowUniform get_shadow_uniform(uint32_t cascade_index) const;
+		ShadowUniform get_shadow_uniform() const;
 
 		const vkb::core::ImageView& get_shadowmaps_view() const;
 
