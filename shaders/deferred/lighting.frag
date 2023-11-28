@@ -50,15 +50,7 @@ layout(constant_id = 0) const uint DIRECTIONAL_LIGHT_COUNT = 0U;
 layout(constant_id = 1) const uint POINT_LIGHT_COUNT       = 0U;
 layout(constant_id = 2) const uint SPOT_LIGHT_COUNT        = 0U;
 
-//layout(set = 0, binding = 5) uniform sampler2DShadow shadowmap_texture0;
-//
-//layout(set = 0, binding = 6) uniform ShadowUniform
-//{
-//	mat4 light_matrix;
-//}
-//shadow_uniform0;
-
-layout(set = 0, binding = 5) uniform sampler2DShadow shadowmap_texture;
+layout(set = 0, binding = 5) uniform sampler2DArrayShadow shadowmap_texture;
 
 struct ShadowUniform {
     mat4 light_matrix;
@@ -84,7 +76,7 @@ float calculate_shadow(highp vec3 pos, uint i)
 	vec4 projected_coord = shadow_uniform.shadows.light_matrix * vec4(pos, 1.0);
 	projected_coord /= projected_coord.w;
 	projected_coord.xy = 0.5 * projected_coord.xy + 0.5;
-	return texture(shadowmap_texture, vec3(projected_coord.xy, projected_coord.z));
+	return texture(shadowmap_texture, vec4(projected_coord.xy, 0, projected_coord.z));
 //	vec4 projected_coord = shadow_uniforms.shadows[0].light_matrix * vec4(pos, 1.0);
 //	projected_coord /= projected_coord.w;
 //	projected_coord.xy = 0.5 * projected_coord.xy + 0.5;

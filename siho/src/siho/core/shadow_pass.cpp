@@ -128,11 +128,9 @@ namespace siho
 		return uniform;
 	}
 
-	const vkb::core::ImageView& ShadowRenderPass::get_shadowmap_view(uint32_t i) const
+	const vkb::core::ImageView& ShadowRenderPass::get_shadowmaps_view() const
 	{
-		auto& shadow_render_target = cascades_[i].shadow_render_targets[render_context_->get_active_frame_index()];
-		assert(!shadow_render_target->get_views().empty());
-		return shadow_render_target->get_views().at(0);
+		return *shadowmap_array_image_views_[render_context_->get_active_frame_index()];
 	}
 
 	std::unique_ptr<vkb::core::Sampler> ShadowRenderPass::create_shadowmap_sampler(vkb::RenderContext& render_context)
@@ -211,28 +209,64 @@ namespace siho
 	void ShadowRenderPass::create_render_targets()
 	{
 		auto& device = render_context_->get_device();
-		// Create shadow render targets
-		for (auto& cascade : cascades_)
+
+		for(uint32_t i = 0; i < kCascadeCount; i++)
 		{
-			VkExtent3D extent{ shadowmap_resolution_, shadowmap_resolution_, 1 };
+			cascades_[i].shadow_render_targets.resize(render_context_->get_render_frames().size());
+		}
 
-			cascade.shadow_render_targets.resize(render_context_->get_render_frames().size());
+		VkExtent3D extent{ shadowmap_resolution_, shadowmap_resolution_, 1 };
 
-			for (auto& render_target : cascade.shadow_render_targets)
-			{
-				vkb::core::Image depth_image{
-				device,
+		for(uint32_t j = 0; j < render_context_->get_render_frames().size(); j++)
+		{
+			shadowmap_array_images_.push_back(std::make_unique<vkb::core::Image>(device,
 				extent,
 				vkb::get_suitable_depth_format(device.get_gpu().get_handle()),
 				VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-				VMA_MEMORY_USAGE_GPU_ONLY
-				};
-				std::vector<vkb::core::Image> images;
-				images.push_back(std::move(depth_image));
+				VMA_MEMORY_USAGE_GPU_ONLY,
+				VK_SAMPLE_COUNT_1_BIT,
+				1,
+				kCascadeCount));
+			shadowmap_array_image_views_.push_back(std::make_unique<vkb::core::ImageView>(*shadowmap_array_images_[j], VK_IMAGE_VIEW_TYPE_2D_ARRAY, VK_FORMAT_UNDEFINED, 0, 0, 1, kCascadeCount));
 
-				render_target = std::make_unique<vkb::RenderTarget>(std::move(images));
+			for (uint32_t i = 0; i < kCascadeCount; i++)
+			{
+				vkb::core::ImageView depth_image_view{ *shadowmap_array_images_[j], VK_IMAGE_VIEW_TYPE_2D_ARRAY ,VK_FORMAT_UNDEFINED,0,i,1,1 };
+				std::vector<vkb::core::ImageView> image_views;
+				image_views.push_back(std::move(depth_image_view));
+
+				cascades_[i].shadow_render_targets[j] = std::make_unique<vkb::RenderTarget>(std::move(image_views));
 			}
 		}
+
+		/*for (uint32_t i = 0; i < kCascadeCount; i++)
+		{
+			VkExtent3D extent{ shadowmap_resolution_, shadowmap_resolution_, 1 };
+
+			cascades_[i].shadow_render_targets.resize(render_context_->get_render_frames().size());
+
+			shadowmap_array_images_.push_back(std::make_unique<vkb::core::Image>(device,
+				extent,
+				vkb::get_suitable_depth_format(device.get_gpu().get_handle()),
+				VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+				VMA_MEMORY_USAGE_GPU_ONLY,
+				VK_SAMPLE_COUNT_1_BIT,
+				1,
+				kCascadeCount));
+
+			shadowmap_array_image_views_.push_back(std::make_unique<vkb::core::ImageView>(*shadowmap_array_images_[i], VK_IMAGE_VIEW_TYPE_2D_ARRAY, VK_FORMAT_UNDEFINED, 0, 0, 1, kCascadeCount));
+
+			for (auto& render_target : cascades_[i].shadow_render_targets)
+			{
+
+				vkb::core::ImageView depth_image_view{ *shadowmap_array_images_[i], VK_IMAGE_VIEW_TYPE_2D_ARRAY ,VK_FORMAT_UNDEFINED,0,i,1,1 };
+
+				std::vector<vkb::core::ImageView> image_views;
+				image_views.push_back(std::move(depth_image_view));
+
+				render_target = std::make_unique<vkb::RenderTarget>(std::move(image_views));
+			}
+		}*/
 	}
 
 	void ShadowRenderPass::create_light_camera(vkb::sg::PerspectiveCamera& camera, vkb::sg::Light& light, vkb::sg::Scene& scene)

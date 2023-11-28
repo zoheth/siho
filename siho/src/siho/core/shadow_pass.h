@@ -61,7 +61,7 @@ namespace siho
 
 		ShadowUniform get_shadow_uniform(uint32_t cascade_index) const;
 
-		const vkb::core::ImageView& get_shadowmap_view(uint32_t cascade_index) const;
+		const vkb::core::ImageView& get_shadowmaps_view() const;
 
 		static std::unique_ptr<vkb::core::Sampler> create_shadowmap_sampler(vkb::RenderContext& render_context);
 
@@ -77,6 +77,10 @@ namespace siho
 		glm::vec4 cascade_splits_;
 		vkb::RenderContext* render_context_{};
 		vkb::sg::PerspectiveCamera* main_camera_{};
+
+		std::vector < std::unique_ptr<vkb::core::Image>> shadowmap_array_images_;
+
+		std::vector<std::unique_ptr<vkb::core::ImageView>> shadowmap_array_image_views_;
 
 		std::unique_ptr<vkb::RenderPipeline> shadow_render_pipeline_{};
 		const uint32_t shadowmap_resolution_{ 2048 };
