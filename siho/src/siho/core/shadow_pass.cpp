@@ -219,6 +219,9 @@ namespace siho
 
 		for(uint32_t j = 0; j < render_context_->get_render_frames().size(); j++)
 		{
+			// For every frame
+			// Create a depth image for each frame, used for shadow mapping.
+			// One image for all cascades
 			shadowmap_array_images_.push_back(std::make_unique<vkb::core::Image>(device,
 				extent,
 				vkb::get_suitable_depth_format(device.get_gpu().get_handle()),
@@ -227,46 +230,25 @@ namespace siho
 				VK_SAMPLE_COUNT_1_BIT,
 				1,
 				kCascadeCount));
+
+			// Create an image view representing the entire image array for shader binding.
+			// sampler2DArray in shader
 			shadowmap_array_image_views_.push_back(std::make_unique<vkb::core::ImageView>(*shadowmap_array_images_[j], VK_IMAGE_VIEW_TYPE_2D_ARRAY, VK_FORMAT_UNDEFINED, 0, 0, 1, kCascadeCount));
 
 			for (uint32_t i = 0; i < kCascadeCount; i++)
 			{
-				vkb::core::ImageView depth_image_view{ *shadowmap_array_images_[j], VK_IMAGE_VIEW_TYPE_2D_ARRAY ,VK_FORMAT_UNDEFINED,0,i,1,1 };
+				// Create image views for each cascade. These are part of the render target and 
+				// allow pipeline results to be written specifically to sections of the image.
+				vkb::core::ImageView cascade_image_view{ *shadowmap_array_images_[j], VK_IMAGE_VIEW_TYPE_2D_ARRAY ,VK_FORMAT_UNDEFINED,0,i,1,1 };
 				std::vector<vkb::core::ImageView> image_views;
-				image_views.push_back(std::move(depth_image_view));
+				image_views.push_back(std::move(cascade_image_view));
 
+				// The render targets use these cascade-specific views, sharing the same base image.
+				// This allows the shader to access results written by all the render target views.
 				cascades_[i].shadow_render_targets[j] = std::make_unique<vkb::RenderTarget>(std::move(image_views));
 			}
 		}
 
-		/*for (uint32_t i = 0; i < kCascadeCount; i++)
-		{
-			VkExtent3D extent{ shadowmap_resolution_, shadowmap_resolution_, 1 };
-
-			cascades_[i].shadow_render_targets.resize(render_context_->get_render_frames().size());
-
-			shadowmap_array_images_.push_back(std::make_unique<vkb::core::Image>(device,
-				extent,
-				vkb::get_suitable_depth_format(device.get_gpu().get_handle()),
-				VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-				VMA_MEMORY_USAGE_GPU_ONLY,
-				VK_SAMPLE_COUNT_1_BIT,
-				1,
-				kCascadeCount));
-
-			shadowmap_array_image_views_.push_back(std::make_unique<vkb::core::ImageView>(*shadowmap_array_images_[i], VK_IMAGE_VIEW_TYPE_2D_ARRAY, VK_FORMAT_UNDEFINED, 0, 0, 1, kCascadeCount));
-
-			for (auto& render_target : cascades_[i].shadow_render_targets)
-			{
-
-				vkb::core::ImageView depth_image_view{ *shadowmap_array_images_[i], VK_IMAGE_VIEW_TYPE_2D_ARRAY ,VK_FORMAT_UNDEFINED,0,i,1,1 };
-
-				std::vector<vkb::core::ImageView> image_views;
-				image_views.push_back(std::move(depth_image_view));
-
-				render_target = std::make_unique<vkb::RenderTarget>(std::move(image_views));
-			}
-		}*/
 	}
 
 	void ShadowRenderPass::create_light_camera(vkb::sg::PerspectiveCamera& camera, vkb::sg::Light& light, vkb::sg::Scene& scene)
