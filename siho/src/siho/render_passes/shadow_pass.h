@@ -82,7 +82,7 @@ namespace siho
 
 		std::vector<std::unique_ptr<vkb::core::ImageView>> shadowmap_array_image_views_;
 
-		std::unique_ptr<vkb::RenderPipeline> shadow_render_pipeline_{};
+		//std::unique_ptr<vkb::RenderPipeline> shadow_render_pipeline_{};
 		const uint32_t shadowmap_resolution_{ 2048 };
 		std::array<Cascade, kCascadeCount> cascades_;
 	};

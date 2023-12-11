@@ -25,7 +25,7 @@ project(siho LANGUAGES C CXX)
 set(SRC
     
     main.cpp
-    "src/siho/core/application.h"  "src/siho/core/application.cpp")
+    "src/siho/core/application.cpp" "src/siho/core/application.h" "src/siho/render_passes/shadow_pass.cpp"  "src/siho/render_passes/shadow_pass.h" "src/siho/render_passes/particles.cpp" "src/siho/render_passes/particles.h" "src/siho/siho_app.cpp" "src/siho/siho_app.h" "src/siho/render_passes/main_pass.h" "src/siho/render_passes/main_pass.cpp")
 
 source_group("\\" FILES ${SRC})
 
@@ -41,8 +41,10 @@ if(ANDROID)
 
     add_library(${PROJECT_NAME} SHARED ${SRC})
 else()
-    add_executable(${PROJECT_NAME} WIN32 ${SRC} ${SHADER_FILES} "src/siho/core/shadow_pass.cpp" "src/siho/core/shadow_pass.h")
+    add_executable(${PROJECT_NAME} WIN32 ${SRC} ${SHADER_FILES})
 endif()
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE vkb__core framework)
 
