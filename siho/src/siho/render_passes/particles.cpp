@@ -68,6 +68,8 @@ namespace siho
 		width_ = render_context.get_surface_extent().width;
 		height_ = render_context.get_surface_extent().height;
 
+		setup_depth_stencil();
+
 		/** Create Pipeline Cache **/
 		VkPipelineCacheCreateInfo pipeline_cache_create_info = {};
 		pipeline_cache_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
@@ -81,12 +83,17 @@ namespace siho
 		VK_CHECK(vkCreateCommandPool(device.get_handle(), &command_pool_info, nullptr, &cmd_pool_));
 
 		draw_cmd_buffers_.resize(render_context.get_render_frames().size());
-		VkCommandBufferAllocateInfo allocate_info = 
+		VkCommandBufferAllocateInfo allocate_info =
 			vkb::initializers::command_buffer_allocate_info(
 				cmd_pool_,
 				VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 				static_cast<uint32_t>(draw_cmd_buffers_.size()));
 		/** Create cmd_pool command_buffers END **/
+
+		setup_render_pass();
+		setup_framebuffer();
+		/** API setup END **/
+
 
 		graphics.queue_family_index = device.get_queue_family_index(VK_QUEUE_GRAPHICS_BIT);
 		compute.queue_family_index = device.get_queue_family_index(VK_QUEUE_COMPUTE_BIT);
@@ -133,9 +140,9 @@ namespace siho
 		render_pass_begin_info.clearValueCount = 2;
 		render_pass_begin_info.pClearValues = clear_values;
 
-		for(int32_t i =0 ;i<draw_cmd_buffers_.size(), ++i)
+		for (int32_t i = 0; i < draw_cmd_buffers_.size(), ++i)
 		{
-			render_pass_begin_info.framebuffer = fram
+			// render_pass_begin_info.framebuffer = fram
 		}
 	}
 
@@ -712,6 +719,45 @@ namespace siho
 		graphics.uniform_buffer->convert_and_update(graphics.ubo);
 	}
 
+	void ParticlePass::setup_depth_stencil()
+	{
+		VkImageCreateInfo image_create_info = vkb::initializers::image_create_info();
+		image_create_info.imageType = VK_IMAGE_TYPE_2D;
+		image_create_info.format = vkb::get_suitable_depth_format(device_->get_gpu().get_handle());
+		image_create_info.extent = { width_, height_, 1 };
+		image_create_info.mipLevels = 1;
+		image_create_info.arrayLayers = 1;
+		image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
+		image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+		image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+
+		VK_CHECK(vkCreateImage(device_->get_handle(), &image_create_info, nullptr, &depth_stencil_.image));
+		VkMemoryRequirements memory_requirements;
+		vkGetImageMemoryRequirements(device_->get_handle(), depth_stencil_.image, &memory_requirements);
+
+		VkMemoryAllocateInfo memory_allocate_info = vkb::initializers::memory_allocate_info();
+		memory_allocate_info.allocationSize = memory_requirements.size;
+		memory_allocate_info.memoryTypeIndex = device_->get_memory_type(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		VK_CHECK(vkAllocateMemory(device_->get_handle(), &memory_allocate_info, nullptr, &depth_stencil_.mem));
+		VK_CHECK(vkBindImageMemory(device_->get_handle(), depth_stencil_.image, depth_stencil_.mem, 0));
+
+		VkImageViewCreateInfo image_view_create_info = vkb::initializers::image_view_create_info();
+		image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		image_view_create_info.format = image_create_info.format;
+		image_view_create_info.image = depth_stencil_.image;
+		image_view_create_info.subresourceRange.baseMipLevel = 0;
+		image_view_create_info.subresourceRange.levelCount = 1;
+		image_view_create_info.subresourceRange.baseArrayLayer = 0;
+		image_view_create_info.subresourceRange.layerCount = 1;
+		image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		// Stencil aspect should only be set on depth + stencil formats
+		if (image_create_info.format >= VK_FORMAT_D16_UNORM_S8_UINT)
+		{
+			image_view_create_info.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+		}
+		VK_CHECK(vkCreateImageView(device_->get_handle(), &image_view_create_info, nullptr, &depth_stencil_.view));
+	}
+
 	void ParticlePass::setup_render_pass()
 	{
 		std::array<VkAttachmentDescription, 2> attachments = {};
@@ -783,6 +829,39 @@ namespace siho
 
 		VK_CHECK(vkCreateRenderPass(device_->get_handle(), &render_pass_create_info, nullptr, &render_pass_));
 
+	}
+
+	void ParticlePass::setup_framebuffer()
+	{
+		VkImageView attachments[2];
+
+		attachments[1] = depth_stencil_.view;
+
+		VkFramebufferCreateInfo framebuffer_create_info = vkb::initializers::framebuffer_create_info();
+		framebuffer_create_info.pNext = nullptr;
+		framebuffer_create_info.renderPass = render_pass_;
+		framebuffer_create_info.attachmentCount = 2;
+		framebuffer_create_info.pAttachments = attachments;
+		framebuffer_create_info.width = width_;
+		framebuffer_create_info.height = height_;
+		framebuffer_create_info.layers = 1;
+
+		if (framebuffers.size() > 0)
+		{
+			for (uint32_t i = 0; i < framebuffers.size(); i++)
+			{
+				if (framebuffers[i] != VK_NULL_HANDLE)
+				{
+					vkDestroyFramebuffer(device_->get_handle(), framebuffers[i], nullptr);
+				}
+			}
+		}
+
+		framebuffers.resize(3);
+		for(uint32_t i = 0; i<framebuffers.size(); i++)
+		{
+			
+		}
 	}
 
 

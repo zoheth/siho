@@ -127,7 +127,9 @@ namespace siho
 		void update_compute_uniform_buffers(float delta_time);
 		void update_graphics_uniform_buffers();
 
+		void setup_depth_stencil();
 		void setup_render_pass();
+		void setup_framebuffer();
 
 	private:
 		uint32_t width_ = 1280;
@@ -142,8 +144,15 @@ namespace siho
 		VkQueue queue_ = VK_NULL_HANDLE;
 		VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE;
 
+		struct
+		{
+			VkImage        image;
+			VkDeviceMemory mem;
+			VkImageView    view;
+		} depth_stencil_;
 		VkCommandPool cmd_pool_;
 		std::vector<VkCommandBuffer> draw_cmd_buffers_;
+		std::vector<VkFramebuffer> framebuffers;
 
 	};
 }
