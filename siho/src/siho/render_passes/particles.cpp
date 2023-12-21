@@ -1,5 +1,7 @@
+#if 0
 #include "particles.h"
 
+#include <core/shader_module.h>
 #include <random>
 
 constexpr uint32_t kParticleCount = 4 * 1024;
@@ -29,7 +31,7 @@ namespace
 	VkDescriptorImageInfo create_descriptor(const siho::Texture& texture, VkDescriptorType descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
 	{
 		VkDescriptorImageInfo descriptor_image_info{};
-		descriptor_image_info.sampler = texture.sampler;
+		descriptor_image_info.sampler = texture.sampler->get_handle();
 		descriptor_image_info.imageView = texture.image->get_vk_image_view().get_handle();
 
 		switch (descriptor_type)
@@ -858,10 +860,76 @@ namespace siho
 		}
 
 		framebuffers.resize(3);
-		for(uint32_t i = 0; i<framebuffers.size(); i++)
+		for (uint32_t i = 0; i < framebuffers.size(); i++)
 		{
-			
+
 		}
+	}
+
+
+	ParticlesSubpass::ParticlesSubpass(vkb::RenderContext& render_context, vkb::ShaderSource&& vertex_shader, vkb::ShaderSource&& fragment_shader, vkb::sg::Camera& camera) :
+		vkb::Subpass{ render_context, std::move(vertex_shader), std::move(fragment_shader) },
+		camera_(camera)
+	{
+	}
+
+	void ParticlesSubpass::prepare()
+	{
+		auto& resource_cache = render_context.get_device().get_resource_cache();
+		resource_cache.request_shader_module(VK_SHADER_STAGE_VERTEX_BIT, get_vertex_shader());
+		resource_cache.request_shader_module(VK_SHADER_STAGE_FRAGMENT_BIT, get_fragment_shader());
+
+		vertex_input_state_.bindings = {
+			vkb::initializers::vertex_input_binding_description(0, sizeof(Particle), VK_VERTEX_INPUT_RATE_VERTEX),
+		};
+		vertex_input_state_.attributes = {
+			vkb::initializers::vertex_input_attribute_description(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Particle, pos)),	// Location 0: Position
+			vkb::initializers::vertex_input_attribute_description(0, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Particle, vel)),	// Location 1: Velocity
+		};
+
+		textures.particle = load_texture("textures/particle_rgba.ktx", vkb::sg::Image::Color, render_context.get_device());
+		textures.gradient = load_texture("textures/particle_gradient_rgba.ktx", vkb::sg::Image::Color, render_context.get_device());
+	}
+
+	void ParticlesSubpass::draw(vkb::CommandBuffer& command_buffer)
+	{
+		auto& resource_cache = command_buffer.get_device().get_resource_cache();
+		auto& vertex_shader_module = resource_cache.request_shader_module(VK_SHADER_STAGE_VERTEX_BIT, get_vertex_shader());
+		auto& fragment_shader_module = resource_cache.request_shader_module(VK_SHADER_STAGE_FRAGMENT_BIT, get_fragment_shader());
+
+		std::vector<vkb::ShaderModule*> shader_modules = { &vertex_shader_module, &fragment_shader_module };
+
+		// Create pipeline layout and bind it
+		auto& pipeline_layout = resource_cache.request_pipeline_layout(shader_modules);
+		command_buffer.bind_pipeline_layout(pipeline_layout);
+
+		vkb::InputAssemblyState input_assembly_state{};
+		input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+		command_buffer.set_input_assembly_state(input_assembly_state);
+
+		vkb::RasterizationState rasterization_state{};
+		rasterization_state.cull_mode = VK_CULL_MODE_NONE;
+		command_buffer.set_rasterization_state(rasterization_state);
+
+
+		command_buffer.bind_image(
+			textures.particle.image->get_vk_image_view(),
+			*textures.particle.sampler,
+			0, 0, 0);
+
+		command_buffer.bind_image(
+			textures.gradient.image->get_vk_image_view(),
+			*textures.gradient.sampler,
+			0, 1, 0);
+
+		command_buffer.bind_buffer(*uniform_buffer, 0, VK_WHOLE_SIZE, 0, 2, 0);
+
+		/*auto vertex_input_resources = pipeline_layout.get_resources(vkb::ShaderResourceType::Input, VK_SHADER_STAGE_VERTEX_BIT);*/
+
+		command_buffer.set_vertex_input_state(vertex_input_state_);
+		command_buffer.bind_vertex_buffers(0, { *storage_buffer }, { 0 });
+
+		command_buffer.draw(num_particles, 1, 0, 0);
 	}
 
 
@@ -947,8 +1015,11 @@ namespace siho
 		sampler_create_info.maxAnisotropy = device.get_gpu().get_features().samplerAnisotropy ? (device.get_gpu().get_properties().limits.maxSamplerAnisotropy) : 1.0f;
 		sampler_create_info.anisotropyEnable = device.get_gpu().get_features().samplerAnisotropy;
 		sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		VK_CHECK(vkCreateSampler(device.get_handle(), &sampler_create_info, nullptr, &texture.sampler));
+		texture.sampler = std::make_unique<vkb::core::Sampler>(device, sampler_create_info);
 
 		return texture;
 	}
 }
+
+#endif
+

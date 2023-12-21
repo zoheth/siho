@@ -25,7 +25,7 @@ project(siho LANGUAGES C CXX)
 set(SRC
     
     main.cpp
-    "src/siho/core/application.cpp" "src/siho/core/application.h" "src/siho/render_passes/shadow_pass.cpp"  "src/siho/render_passes/shadow_pass.h" "src/siho/render_passes/particles.cpp" "src/siho/render_passes/particles.h" "src/siho/siho_app.cpp" "src/siho/siho_app.h" "src/siho/render_passes/main_pass.h" "src/siho/render_passes/main_pass.cpp")
+    "src/siho/core/application.cpp" "src/siho/core/application.h" "src/siho/render_passes/shadow_pass.cpp"  "src/siho/render_passes/shadow_pass.h" "src/siho/render_passes/particles.cpp" "src/siho/render_passes/particles.h" "src/siho/siho_app.cpp" "src/siho/siho_app.h" "src/siho/render_passes/main_pass.h" "src/siho/render_passes/main_pass.cpp" "src/siho/render_passes/test_pass.cpp" "src/siho/render_passes/test_pass.h")
 
 source_group("\\" FILES ${SRC})
 

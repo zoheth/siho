@@ -1,3 +1,4 @@
+#if 0
 #pragma once
 #include "camera.h"
 #include "rendering/subpass.h"
@@ -9,38 +10,52 @@
 
 namespace siho
 {
-	//struct Particle
-	//{
-	//	glm::vec4 pos;        // xyz = position, w = mass
-	//	glm::vec4 vel;        // xyz = velocity, w = gradient texture position
-	//};
-
-	//class ParticlesSubpass : public vkb::Subpass
-	//{
-	//public:
-	//	ParticlesSubpass(vkb::RenderContext& render_context, vkb::ShaderSource&& vertex_shader, vkb::ShaderSource&& fragment_shader, vkb::sg::Camera& camera);
-
-	//	void prepare() override;
-
-	//	// void draw(vkb::CommandBuffer& command_buffer) override;
-
-	//private:
-	//	vkb::sg::Camera& camera_;
-	//	std::unique_ptr<vkb::core::Buffer> particle_buffer_{ nullptr };
-
-	//	struct ComputeUniform
-	//	{
-	//		float   delta_time;        //		Frame delta time
-	//		int32_t particle_count;
-	//	} compute_uniform_;
-
-
-	//};
-
 	struct Texture
 	{
 		std::unique_ptr<vkb::sg::Image> image;
-		VkSampler                       sampler;
+		std::unique_ptr<vkb::core::Sampler> sampler;
+		// VkSampler                       sampler;
+	};
+
+	struct Particle
+	{
+		glm::vec4 pos;        // xyz = position, w = mass
+		glm::vec4 vel;        // xyz = velocity, w = gradient texture position
+	};
+
+	class ParticlesSubpass : public vkb::Subpass
+	{
+	public:
+		ParticlesSubpass(vkb::RenderContext& render_context, vkb::ShaderSource&& vertex_shader, vkb::ShaderSource&& fragment_shader, vkb::sg::Camera& camera);
+
+		void prepare() override;
+
+		void draw(vkb::CommandBuffer& command_buffer) override;
+
+	private:
+		vkb::sg::Camera& camera_;
+		std::unique_ptr<vkb::core::Buffer> particle_buffer_{ nullptr };
+
+		struct ComputeUniform
+		{
+			float   delta_time;        //		Frame delta time
+			int32_t particle_count;
+		} compute_uniform_;
+
+		vkb::VertexInputState vertex_input_state_;
+
+		struct
+		{
+			Texture particle;
+			Texture gradient;
+		} textures;
+		std::unique_ptr<vkb::core::Buffer> uniform_buffer;
+
+		/** temp **/
+		vkb::core::Buffer* storage_buffer;
+		uint32_t num_particles;
+
+
 	};
 
 	Texture load_texture(const std::string& file, vkb::sg::Image::ContentType content_type, const vkb::Device& device);
@@ -156,3 +171,4 @@ namespace siho
 
 	};
 }
+#endif
