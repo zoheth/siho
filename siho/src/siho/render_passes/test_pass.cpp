@@ -14,6 +14,20 @@ namespace siho
 		auto& resource_cache = render_context.get_device().get_resource_cache();
 		resource_cache.request_shader_module(VK_SHADER_STAGE_VERTEX_BIT, get_vertex_shader());
 		resource_cache.request_shader_module(VK_SHADER_STAGE_FRAGMENT_BIT, get_fragment_shader());
+		vertex_input_state_.bindings = {
+			vkb::initializers::vertex_input_binding_description(0,sizeof(Vertex),VK_VERTEX_INPUT_RATE_VERTEX)
+		};
+		vertex_input_state_.attributes = {
+			vkb::initializers::vertex_input_attribute_description(0,0,VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex,position))
+		};
+		vertex_buffer_ = std::make_unique<vkb::core::Buffer>( render_context.get_device(), sizeof(Vertex) * 3, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU );
+
+		std::vector<Vertex> vertices = {
+			Vertex(glm::vec3(-0.5f, -0.5f, 0.0f)),
+			Vertex(glm::vec3(0.5f, -0.5f, 0.0f)),
+			Vertex(glm::vec3(0.0f, 0.5f, 0.0f))
+		};
+		vertex_buffer_->convert_and_update(vertices);
 	}
 
 	void TestSubpass::draw(vkb::CommandBuffer& command_buffer)
@@ -33,27 +47,10 @@ namespace siho
 		rasterization_state.cull_mode = VK_CULL_MODE_FRONT_BIT;
 		command_buffer.set_rasterization_state(rasterization_state);
 
-		vkb::VertexInputState vertex_input_state;
-
-		vertex_input_state.bindings = {
-			vkb::initializers::vertex_input_binding_description(0,sizeof(Vertex),VK_VERTEX_INPUT_RATE_VERTEX)
-		};
-		vertex_input_state.attributes = {
-			vkb::initializers::vertex_input_attribute_description(0,0,VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex,position))
-		};
-		vkb::core::Buffer vertex_buffer = vkb::core::Buffer{ command_buffer.get_device(), sizeof(Vertex) * 3, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU };
-
-		std::vector<Vertex> vertices = {
-			Vertex(glm::vec3(-0.5f, -0.5f, 0.0f)),
-			Vertex(glm::vec3(0.5f, -0.5f, 0.0f)),
-			Vertex(glm::vec3(0.0f, 0.5f, 0.0f))
-		};
-		vertex_buffer.convert_and_update(vertices);
-
-		command_buffer.set_vertex_input_state(vertex_input_state);
+		command_buffer.set_vertex_input_state(vertex_input_state_);
 
 		std::vector<std::reference_wrapper<const vkb::core::Buffer>> buffers;
-		buffers.emplace_back(std::ref(vertex_buffer));
+		buffers.emplace_back(std::ref(*vertex_buffer_));
 		command_buffer.bind_vertex_buffers(0, std::move(buffers), { 0 });
 
 		command_buffer.draw(3, 1, 0, 0);

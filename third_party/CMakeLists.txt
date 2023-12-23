@@ -338,6 +338,7 @@ endif()
 
 # spdlog
 add_subdirectory(spdlog)
+add_definitions(-D_SILENCE_STDEXT_ARR_ITERS_DEPRECATION_WARNING)
 set_property(TARGET spdlog PROPERTY FOLDER "ThirdParty")
 
 # ctpl

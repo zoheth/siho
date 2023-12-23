@@ -17,5 +17,9 @@ namespace siho
 
 		void prepare() override;
 		void draw(vkb::CommandBuffer& command_buffer) override;
+
+	private:
+		vkb::VertexInputState vertex_input_state_;
+		std::unique_ptr<vkb::core::Buffer> vertex_buffer_;
 	};
 }
