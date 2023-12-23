@@ -8,6 +8,7 @@
 
 #include "siho/render_passes/shadow_pass.h"
 #include "siho/render_passes/main_pass.h"
+#include "siho/render_passes/test_pass.h"
 #include "scene_graph/components/orthographic_camera.h"
 
 namespace siho

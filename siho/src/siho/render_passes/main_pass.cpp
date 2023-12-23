@@ -125,9 +125,14 @@ namespace siho
 
 		lighting_subpass->set_input_attachments({ 1, 2, 3 });
 
+		auto test_vs = vkb::ShaderSource{ "tests/test.vert" };
+		auto test_fs = vkb::ShaderSource("tests/test/frag");
+		auto test_subpass = std::make_unique<TestSubpass>(*render_context_, std::move(test_vs), std::move(test_fs));
+
 		std::vector<std::unique_ptr<vkb::Subpass>> subpasses{};
 		subpasses.push_back(std::move(scene_subpass));
 		subpasses.push_back(std::move(lighting_subpass));
+		subpasses.push_back(std::move(test_subpass));
 
 		render_pipeline_ = std::make_unique<vkb::RenderPipeline>(std::move(subpasses));
 
