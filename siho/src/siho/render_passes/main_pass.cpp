@@ -92,6 +92,18 @@ namespace siho
 			VMA_MEMORY_USAGE_GPU_ONLY
 		};
 
+		vkb::core::Image light_image{ device,extent,
+			albedo_format,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | rt_usage_flags,
+			VMA_MEMORY_USAGE_GPU_ONLY
+		};
+
+		vkb::core::Image depth_image2{ device,extent,
+			vkb::get_suitable_depth_format(swapchain_image.get_device().get_gpu().get_handle()),
+			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | rt_usage_flags,
+			VMA_MEMORY_USAGE_GPU_ONLY
+		};
+
 		std::vector<vkb::core::Image> images;
 
 		// Attachment 0
