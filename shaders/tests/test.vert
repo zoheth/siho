@@ -2,6 +2,8 @@
 
 layout (location = 0) in vec3 inPos;
 
+layout (location = 0) out vec2 out_uv;
+
 void main () 
 {	
 //    vec3 vertices[3] = vec3[](vec3(0.0, -0.5, 1.0),  
@@ -9,5 +11,6 @@ void main ()
 //                              vec3(0.5, 0.5, 1.0)); 
 //
 //    gl_Position = vec4(vertices[gl_VertexIndex], 1.0);
+	out_uv = inPos.xy;
 	gl_Position = vec4(inPos, 1.0);
 }
