@@ -28,6 +28,7 @@ namespace siho
 		vkb::PipelineLayout& prepare_pipeline_layout(vkb::CommandBuffer& command_buffer, const std::vector<vkb::ShaderModule*>& shader_modules) override;
 
 		void prepare_push_constants(vkb::CommandBuffer& command_buffer, vkb::sg::SubMesh& sub_mesh) override;
+
 	};
 
 	struct Cascade

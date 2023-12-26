@@ -146,6 +146,11 @@ bool VulkanSample::prepare(const ApplicationOptions &options)
 	{
 		gpu.get_mutable_requested_features().textureCompressionASTC_LDR = VK_TRUE;
 	}
+	// Siho CSM request to enable depth clamp
+	if(gpu.get_features().depthClamp)
+	{
+		gpu.get_mutable_requested_features().depthClamp = VK_TRUE;
+	}
 
 	// Request sample required GPU features
 	request_gpu_features(gpu);

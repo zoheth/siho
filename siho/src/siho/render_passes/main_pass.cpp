@@ -1,5 +1,7 @@
 #include "main_pass.h"
 
+#include "rendering/subpass.h"
+
 namespace 
 {
 	VkFormat          albedo_format{ VK_FORMAT_R8G8B8A8_UNORM };
@@ -118,6 +120,9 @@ namespace siho
 		// Attachment 3
 		images.push_back(std::move(normal_image));
 
+		images.push_back(std::move(light_image));
+
+
 		return std::make_unique<vkb::RenderTarget>(std::move(images));
 	}
 
@@ -134,16 +139,19 @@ namespace siho
 		auto lighting_vs = vkb::ShaderSource{ "deferred/lighting.vert" };
 		auto lighting_fs = vkb::ShaderSource{ "deferred/lighting.frag" };
 		auto lighting_subpass = std::make_unique<LightingSubpass>(*render_context_, std::move(lighting_vs), std::move(lighting_fs), camera, scene, *shadow_render_pass_);
-
+		lighting_subpass->set_disable_depth_stencil_attachment(true);
 		lighting_subpass->set_input_attachments({ 1, 2, 3 });
+		lighting_subpass->set_output_attachments({ 4 });
 
 		auto test_vs = vkb::ShaderSource{ "tests/test.vert" };
 		auto test_fs = vkb::ShaderSource("tests/test.frag");
 		auto test_subpass = std::make_unique<TestSubpass>(*render_context_, std::move(test_vs), std::move(test_fs));
 
+		test_subpass->set_input_attachments({ 4 });
+
 		std::vector<std::unique_ptr<vkb::Subpass>> subpasses{};
-		//subpasses.push_back(std::move(scene_subpass));
-		//subpasses.push_back(std::move(lighting_subpass));
+		subpasses.push_back(std::move(scene_subpass));
+		subpasses.push_back(std::move(lighting_subpass));
 		subpasses.push_back(std::move(test_subpass));
 
 		render_pipeline_ = std::make_unique<vkb::RenderPipeline>(std::move(subpasses));
@@ -182,8 +190,10 @@ namespace siho
 			memory_barrier.src_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 			memory_barrier.dst_stage_mask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
 
-			assert(depth_attachment_index < views.size());
-			command_buffer.image_memory_barrier(views[depth_attachment_index], memory_barrier);
+			assert(1 < views.size());
+			command_buffer.image_memory_barrier(views[1], memory_barrier);
+			// command_buffer.image_memory_barrier(views[2], memory_barrier);
+
 		}
 
 		{

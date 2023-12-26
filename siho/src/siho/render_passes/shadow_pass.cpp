@@ -40,6 +40,9 @@ namespace siho
 		vkb::RasterizationState rasterization_state{};
 		rasterization_state.front_face = front_face;
 		rasterization_state.depth_bias_enable = VK_TRUE;
+		// It is necessary to specify the desired features before creating the device.
+		// In this framework, you can enable the depthClamp feature by setting it to VK_TRUE
+		// using: gpu.get_mutable_requested_features().depthClamp = VK_TRUE;
 		rasterization_state.depth_clamp_enable = VK_TRUE;
 
 		if (double_sided_material)
