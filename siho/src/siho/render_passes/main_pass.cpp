@@ -120,7 +120,7 @@ namespace siho
 		// Attachment 3
 		images.push_back(std::move(normal_image));
 
-		images.push_back(std::move(light_image));
+		// images.push_back(std::move(light_image));
 
 
 		return std::make_unique<vkb::RenderTarget>(std::move(images));
@@ -141,13 +141,13 @@ namespace siho
 		auto lighting_subpass = std::make_unique<LightingSubpass>(*render_context_, std::move(lighting_vs), std::move(lighting_fs), camera, scene, *shadow_render_pass_);
 		lighting_subpass->set_disable_depth_stencil_attachment(true);
 		lighting_subpass->set_input_attachments({ 1, 2, 3 });
-		lighting_subpass->set_output_attachments({ 4 });
+		//lighting_subpass->set_output_attachments({ 4 });
 
 		auto test_vs = vkb::ShaderSource{ "tests/test.vert" };
 		auto test_fs = vkb::ShaderSource("tests/test.frag");
 		auto test_subpass = std::make_unique<TestSubpass>(*render_context_, std::move(test_vs), std::move(test_fs));
 
-		test_subpass->set_input_attachments({ 4 });
+		//test_subpass->set_input_attachments({ 4 });
 
 		std::vector<std::unique_ptr<vkb::Subpass>> subpasses{};
 		subpasses.push_back(std::move(scene_subpass));

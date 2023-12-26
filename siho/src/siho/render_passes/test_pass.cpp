@@ -45,6 +45,13 @@ namespace siho
 		auto& pipeline_layout = resource_cache.request_pipeline_layout(shader_modules);
 		command_buffer.bind_pipeline_layout(pipeline_layout);
 
+		// Get image views of the attachments
+		/*auto& render_target = get_render_context().get_active_frame().get_render_target();
+		auto& target_views = render_target.get_views();
+		assert(4 < target_views.size());
+		auto& light_view = target_views[4];
+		command_buffer.bind_input(light_view, 0, 0, 0);*/
+
 		vkb::RasterizationState rasterization_state;
 		rasterization_state.cull_mode = VK_CULL_MODE_NONE;
 		command_buffer.set_rasterization_state(rasterization_state);
