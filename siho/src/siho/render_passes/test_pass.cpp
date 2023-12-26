@@ -45,6 +45,10 @@ namespace siho
 		std::vector<vkb::ShaderModule*> shader_modules{ &vert_shader_module, &frag_shader_module };
 
 		// Create pipeline layout and bind it
+		// The construction of the PipelineLayout class requires a ShaderModule.
+		// The ShaderModule is capable of automatically parsing the shader code to extract information about certain resources.
+		// Utilizing this information, the PipelineLayout can automatically generate the DescriptorSetLayout.
+		// Note that, currently, this process only considers the first descriptor set (set 0) in Vulkan.
 		auto& pipeline_layout = resource_cache.request_pipeline_layout(shader_modules);
 		command_buffer.bind_pipeline_layout(pipeline_layout);
 
