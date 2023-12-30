@@ -6,7 +6,8 @@
 namespace siho
 {
 	TestSubpass::TestSubpass(vkb::RenderContext& render_context, vkb::ShaderSource&& vertex_shader,
-		vkb::ShaderSource&& fragment_shader) : Subpass(render_context, std::move(vertex_shader), std::move(fragment_shader))
+		vkb::ShaderSource&& fragment_shader, vkb::sg::Camera& camera) : Subpass(render_context, std::move(vertex_shader), std::move(fragment_shader)),
+		camera_(camera)
 	{
 	}
 
@@ -21,12 +22,12 @@ namespace siho
 		vertex_input_state_.attributes = {
 			vkb::initializers::vertex_input_attribute_description(0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex,position))
 		};
-		vertex_buffer_ = std::make_unique<vkb::core::Buffer>( render_context.get_device(), sizeof(Vertex) * 3, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU );
+		vertex_buffer_ = std::make_unique<vkb::core::Buffer>(render_context.get_device(), sizeof(Vertex) * 3, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
 		std::vector<Vertex> vertices = {
-			Vertex(glm::vec3(-0.5f, -0.5f, 1.0f)),
-			Vertex(glm::vec3(0.5f, -0.5f, 1.0f)),
-			Vertex(glm::vec3(0.0f, 0.5f, 1.0f))
+			Vertex(glm::vec3(-400.5f, 8.5f, -225.0f)),
+			Vertex(glm::vec3(-400.5f, 108.5f, -225.0f)),
+			Vertex(glm::vec3(-400.0f, 8.5f, 140.0f))
 		};
 		const uint8_t* vertex_data = reinterpret_cast<const uint8_t*>(vertices.data());
 		size_t vertex_data_size = vertices.size() * sizeof(Vertex);
@@ -37,6 +38,7 @@ namespace siho
 
 	void TestSubpass::draw(vkb::CommandBuffer& command_buffer)
 	{
+		update_uniform(command_buffer);
 		// Get shaders from cache
 		auto& resource_cache = command_buffer.get_device().get_resource_cache();
 		auto& vert_shader_module = resource_cache.request_shader_module(VK_SHADER_STAGE_VERTEX_BIT, get_vertex_shader());
@@ -70,7 +72,7 @@ namespace siho
 		command_buffer.bind_vertex_buffers(0, std::move(buffers), { 0 });
 
 		vkb::DescriptorSetLayout& descriptor_set_layout = pipeline_layout.get_descriptor_set_layout(0);
-		if(auto layout_bingding = descriptor_set_layout.get_layout_binding("test_texture"))
+		if (auto layout_bingding = descriptor_set_layout.get_layout_binding("test_texture"))
 		{
 			command_buffer.bind_image(texture_.image->get_vk_image_view(),
 				*texture_.sampler,
@@ -78,6 +80,26 @@ namespace siho
 		}
 
 		command_buffer.draw(3, 1, 0, 0);
+	}
+
+	void TestSubpass::update_uniform(vkb::CommandBuffer& command_buffer)
+	{
+		GlobalUniform global_uniform{};
+		
+		global_uniform.camera_view_proj = camera_.get_pre_rotation() * vkb::vulkan_style_projection(camera_.get_projection() * camera_.get_view());
+
+		auto& render_frame = get_render_context().get_active_frame();
+
+		auto allocation = render_frame.allocate_buffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(GlobalUniform));
+
+		// Set the camera's position in world coordinates by inverting the view matrix and extracting its translation component
+		global_uniform.camera_position = glm::vec3(glm::inverse(camera_.get_view())[3]);
+
+		global_uniform.model = glm::mat4(1.0f);
+
+		allocation.update(global_uniform);
+
+		command_buffer.bind_buffer(allocation.get_buffer(), allocation.get_offset(), allocation.get_size(), 0, 1, 0);
 	}
 
 	inline void upload_image_to_gpu(vkb::CommandBuffer& command_buffer, vkb::core::Buffer& staging_buffer, vkb::sg::Image& image)

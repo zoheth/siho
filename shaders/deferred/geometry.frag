@@ -1,4 +1,5 @@
 #version 320 es
+#extension GL_NV_uniform_buffer_std430_layout : enable
 /* Copyright (c) 2019, Arm Limited and Contributors
  *
  * SPDX-License-Identifier: Apache-2.0

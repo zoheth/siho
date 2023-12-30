@@ -145,7 +145,7 @@ namespace siho
 
 		auto test_vs = vkb::ShaderSource{ "tests/test.vert" };
 		auto test_fs = vkb::ShaderSource("tests/test.frag");
-		auto test_subpass = std::make_unique<TestSubpass>(*render_context_, std::move(test_vs), std::move(test_fs));
+		auto test_subpass = std::make_unique<TestSubpass>(*render_context_, std::move(test_vs), std::move(test_fs), camera);
 
 		//test_subpass->set_input_attachments({ 4 });
 
