@@ -151,7 +151,7 @@ bool VulkanSample::prepare(const ApplicationOptions &options)
 	{
 		gpu.get_mutable_requested_features().depthClamp = VK_TRUE;
 	}
-
+	
 	// Request sample required GPU features
 	request_gpu_features(gpu);
 

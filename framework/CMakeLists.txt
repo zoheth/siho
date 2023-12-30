@@ -430,7 +430,7 @@ if(${VKB_WARNINGS_AS_ERRORS})
     if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         target_compile_options(${PROJECT_NAME} PRIVATE -Werror)
     elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-        target_compile_options(${PROJECT_NAME} PRIVATE /W3)
+        target_compile_options(${PROJECT_NAME} PRIVATE /W3 /WX)
     endif()
 endif()
 
@@ -455,8 +455,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     glslang-default-resource-limits
     spdlog
     ctpl
-    CLI11::CLI11
-    )
+    CLI11::CLI11)
 
 if(${NEED_LINK_ATOMIC})
     target_link_libraries(${PROJECT_NAME} PUBLIC atomic)

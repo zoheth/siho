@@ -336,9 +336,13 @@ if(NOT ANDROID)
     endif()
 endif()
 
+# fmt
+add_subdirectory(fmt)
+set_property(TARGET fmt PROPERTY FOLDER "ThirdParty")
+
 # spdlog
+set(SPDLOG_FMT_EXTERNAL ON)
 add_subdirectory(spdlog)
-add_definitions(-D_SILENCE_STDEXT_ARR_ITERS_DEPRECATION_WARNING)
 set_property(TARGET spdlog PROPERTY FOLDER "ThirdParty")
 
 # ctpl

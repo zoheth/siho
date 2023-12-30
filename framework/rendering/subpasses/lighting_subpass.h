@@ -70,7 +70,6 @@ class LightingSubpass : public Subpass
 	sg::Camera &camera;
 
   private:
-
 	sg::Scene &scene;
 
 	ShaderVariant lighting_variant;
