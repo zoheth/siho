@@ -6,9 +6,9 @@
 #include "scene_graph/components/perspective_camera.h"
 #include "rendering/subpasses/lighting_subpass.h"
 
-#include "siho/render_passes/shadow_pass.h"
-#include "siho/render_passes/main_pass.h"
-#include "siho/render_passes/test_pass.h"
+#include "siho/passes/shadow_pass.h"
+#include "siho/passes/main_pass.h"
+#include "siho/passes/test_pass.h"
 #include "scene_graph/components/orthographic_camera.h"
 
 namespace siho

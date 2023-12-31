@@ -1,4 +1,3 @@
-#if 0
 #pragma once
 #include "camera.h"
 #include "rendering/subpass.h"
@@ -171,4 +170,3 @@ namespace siho
 
 	};
 }
-#endif

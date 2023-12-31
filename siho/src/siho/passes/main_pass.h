@@ -1,7 +1,7 @@
 #pragma once
 #include "ctpl_stl.h"
 #include "shadow_pass.h"
-#include "test_pass.h"
+#include "particles_pass.h"
 #include "rendering/subpasses/lighting_subpass.h"
 
 namespace siho

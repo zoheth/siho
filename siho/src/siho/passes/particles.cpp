@@ -1,4 +1,3 @@
-#if 0
 #include "particles.h"
 
 #include <core/shader_module.h>
@@ -1020,6 +1019,4 @@ namespace siho
 		return texture;
 	}
 }
-
-#endif
 
