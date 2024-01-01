@@ -64,7 +64,9 @@ namespace siho
 
 		shadow_render_pass_.init(get_render_context(), *scene, *camera, directional_light);
 
-		main_pass_.init(get_render_context(), *scene, *camera, shadow_render_pass_);
+		fx_compute_pass_.init(get_render_context());
+
+		main_pass_.init(get_render_context(), *scene, *camera, shadow_render_pass_, fx_compute_pass_);
 
 		stats->request_stats({ vkb::StatIndex::frame_times });
 
@@ -86,7 +88,18 @@ namespace siho
 
 		auto command_buffers = record_command_buffers(main_command_buffer);
 
+
+		const auto& queue = device->get_queue_by_flags(VK_QUEUE_COMPUTE_BIT, 0);
+		auto& compute_command_buffer = render_context->get_active_frame().request_command_buffer(queue);
+
+		compute_command_buffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		fx_compute_pass_.dispatch(compute_command_buffer, delta_time);
+		compute_command_buffer.end();
+
+		queue.submit(compute_command_buffer, VK_NULL_HANDLE);
+
 		render_context->submit(command_buffers);
+		
 	}
 
 	void SihoApplication::draw_gui()
@@ -129,8 +142,8 @@ namespace siho
 
 	std::vector<vkb::CommandBuffer*> SihoApplication::record_command_buffers(vkb::CommandBuffer& main_command_buffer)
 	{
-		auto reset_mode = vkb::CommandBuffer::ResetMode::ResetPool;
-		const auto& queue = device->get_queue_by_flags(VK_QUEUE_GRAPHICS_BIT, 0);
+		/*auto reset_mode = vkb::CommandBuffer::ResetMode::ResetPool;
+		const auto& queue = device->get_queue_by_flags(VK_QUEUE_GRAPHICS_BIT, 0);*/
 
 		std::vector<vkb::CommandBuffer*> command_buffers;
 		// shadow_subpass->set_thread_index(1);

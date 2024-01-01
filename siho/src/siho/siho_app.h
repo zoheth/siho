@@ -8,7 +8,7 @@
 
 #include "siho/passes/shadow_pass.h"
 #include "siho/passes/main_pass.h"
-#include "siho/passes/test_pass.h"
+#include "siho/passes/particles_pass.h"
 #include "scene_graph/components/orthographic_camera.h"
 
 namespace siho
@@ -38,6 +38,7 @@ namespace siho
 
 		ShadowRenderPass shadow_render_pass_;
 		MainPass main_pass_;
+		FxComputePass fx_compute_pass_;
 
 		vkb::sg::Light* directional_light_;
 

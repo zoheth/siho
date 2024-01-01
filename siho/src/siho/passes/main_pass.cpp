@@ -40,10 +40,11 @@ namespace siho
 	}
 
 	void MainPass::init(vkb::RenderContext& render_context, vkb::sg::Scene& scene, vkb::sg::Camera& camera,
-		siho::ShadowRenderPass& shadow_render_pass)
+		siho::ShadowRenderPass& shadow_render_pass, FxComputePass& fx_compute_pass)
 	{
 		render_context_ = &render_context;
 		shadow_render_pass_ = &shadow_render_pass;
+		fx_compute_pass_ = &fx_compute_pass;
 		create_render_pipeline(camera, scene);
 	}
 
@@ -150,6 +151,7 @@ namespace siho
 		auto particle_vs = vkb::ShaderSource{ "particles/particle.vert" };
 		auto particle_fs = vkb::ShaderSource{ "particles/particle.frag" };
 		auto particle_subpass = std::make_unique<FxGraphSubpass>(*render_context_, std::move(particle_vs), std::move(particle_fs), camera);
+		particle_subpass->set_storage_buffer(fx_compute_pass_->get_storage_buffer());
 
 		std::vector<std::unique_ptr<vkb::Subpass>> subpasses{};
 		subpasses.push_back(std::move(scene_subpass));

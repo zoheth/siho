@@ -14,6 +14,36 @@ namespace siho
 		glm::vec4 vel;        // xyz = velocity, w = gradient texture position
 	};
 
+	class FxComputePass
+	{
+	public:
+		uint32_t num_particles;
+		uint32_t work_group_size = 128;
+	public:
+		explicit FxComputePass();
+		void init(vkb::RenderContext& render_context);
+		void dispatch(vkb::CommandBuffer& command_buffer, float delta_time);
+
+		std::shared_ptr<vkb::core::Buffer> get_storage_buffer();
+	private:
+		void update_uniform(vkb::CommandBuffer& command_buffer);
+		void prepare_storage_buffers();
+	private:
+		struct ComputeUbo
+		{                              // Compute shader uniform block object
+			float   delta_time;        //		Frame delta time
+			int32_t particle_count;
+		} ubo_;
+
+		vkb::RenderContext* render_context_;
+		vkb::ShaderSource calculate_shader_;
+		vkb::ShaderSource integrate_shader_;
+
+		std::shared_ptr<vkb::core::Buffer> storage_buffer_;
+
+		//vkb::CommandBuffer command_buffer_;
+	};
+
 	class FxGraphSubpass : public vkb::Subpass
 	{
 	public:
@@ -22,11 +52,10 @@ namespace siho
 		void prepare() override;
 		void draw(vkb::CommandBuffer& command_buffer) override;
 
+		void set_storage_buffer(std::shared_ptr<vkb::core::Buffer> storage_buffer);
+
 	protected:
 		virtual void update_uniform(vkb::CommandBuffer& command_buffer);
-
-	private:
-		void prepare_storage_buffers();
 
 	private:
 		struct alignas(16) GlobalUniform

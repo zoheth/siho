@@ -151,6 +151,10 @@ bool VulkanSample::prepare(const ApplicationOptions &options)
 	{
 		gpu.get_mutable_requested_features().depthClamp = VK_TRUE;
 	}
+	if(gpu.get_features().samplerAnisotropy)
+	{
+		gpu.get_mutable_requested_features().samplerAnisotropy = VK_TRUE;
+	}
 	
 	// Request sample required GPU features
 	request_gpu_features(gpu);

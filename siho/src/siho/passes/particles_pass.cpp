@@ -1,12 +1,104 @@
 #include "particles_pass.h"
 
 #include <random>
+#include <utility>
 #include <common/vk_initializers.h>
 
 constexpr uint32_t kParticleCount = 4 * 1024;
 
 namespace siho
 {
+	FxComputePass::FxComputePass()
+	{
+		calculate_shader_ = vkb::ShaderSource{ "particles/particle_calculate.comp" };
+		integrate_shader_ = vkb::ShaderSource{ "particles/particle_integrate.comp" };
+		num_particles = 6 * kParticleCount;
+		ubo_.particle_count = num_particles;
+		ubo_.delta_time = 0.0f;
+	}
+
+	void FxComputePass::init(vkb::RenderContext& render_context)
+	{
+		render_context_ = &render_context;
+		auto& resource_cache = render_context_->get_device().get_resource_cache();
+		auto& calculate_module = resource_cache.request_shader_module(VK_SHADER_STAGE_COMPUTE_BIT, calculate_shader_);
+		auto& integrate_module = resource_cache.request_shader_module(VK_SHADER_STAGE_COMPUTE_BIT, integrate_shader_);
+		prepare_storage_buffers();
+	}
+
+	void FxComputePass::dispatch(vkb::CommandBuffer& command_buffer, float delta_time)
+	{
+		ubo_.delta_time = delta_time;
+		auto& render_frame = render_context_->get_active_frame();
+		auto allocation = render_frame.allocate_buffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(ubo_));
+		allocation.update(ubo_);
+		command_buffer.bind_buffer(allocation.get_buffer(), allocation.get_offset(), allocation.get_size(), 0, 1, 0);
+
+		vkb::BufferMemoryBarrier buffer_barrier{};
+		buffer_barrier.src_access_mask = 0;
+		buffer_barrier.dst_access_mask = VK_ACCESS_SHADER_WRITE_BIT;
+		buffer_barrier.src_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		buffer_barrier.dst_stage_mask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+		command_buffer.buffer_memory_barrier(*storage_buffer_, 0, storage_buffer_->get_size(), buffer_barrier);
+
+		auto& resource_cache = render_context_->get_device().get_resource_cache();
+		auto& calculate_module = resource_cache.request_shader_module(VK_SHADER_STAGE_COMPUTE_BIT, calculate_shader_);
+		auto& integrate_module = resource_cache.request_shader_module(VK_SHADER_STAGE_COMPUTE_BIT, integrate_shader_);
+
+		{
+			const std::vector<vkb::ShaderModule*> shader_modules{ &calculate_module };
+
+			auto& pipeline_layout = resource_cache.request_pipeline_layout(shader_modules);
+
+			command_buffer.bind_pipeline_layout(pipeline_layout);
+
+			command_buffer.set_specialization_constant(0, work_group_size);
+
+			const vkb::DescriptorSetLayout& descriptor_set_layout = pipeline_layout.get_descriptor_set_layout(0);
+
+			if (const auto layout_bingding = descriptor_set_layout.get_layout_binding("Pos"))
+			{
+				command_buffer.bind_buffer(*storage_buffer_, 0, storage_buffer_->get_size(), 0, layout_bingding->binding, 0);
+			}
+			command_buffer.dispatch(num_particles / work_group_size, 1, 1);
+		}
+
+		buffer_barrier.src_access_mask = VK_ACCESS_SHADER_WRITE_BIT;
+		buffer_barrier.dst_access_mask = VK_ACCESS_SHADER_READ_BIT;
+		buffer_barrier.src_stage_mask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+		buffer_barrier.dst_stage_mask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+		command_buffer.buffer_memory_barrier(*storage_buffer_, 0, storage_buffer_->get_size(), buffer_barrier);
+
+		{
+			const std::vector<vkb::ShaderModule*> shader_modules{ &integrate_module };
+
+			auto& pipeline_layout = resource_cache.request_pipeline_layout(shader_modules);
+
+			command_buffer.bind_pipeline_layout(pipeline_layout);
+
+			command_buffer.set_specialization_constant(0, work_group_size);
+
+			const vkb::DescriptorSetLayout& descriptor_set_layout = pipeline_layout.get_descriptor_set_layout(0);
+
+			/*if (const auto layout_bingding = descriptor_set_layout.get_layout_binding("Pos"))
+			{
+				command_buffer.bind_buffer(*storage_buffer_, 0, storage_buffer_->get_size(), 0, layout_bingding->binding, 0);
+			}*/
+			command_buffer.dispatch(num_particles / work_group_size, 1, 1);
+		}
+
+		buffer_barrier.src_access_mask = VK_ACCESS_SHADER_WRITE_BIT;
+		buffer_barrier.dst_access_mask = 0;
+		buffer_barrier.src_stage_mask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+		buffer_barrier.dst_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		command_buffer.buffer_memory_barrier(*storage_buffer_, 0, storage_buffer_->get_size(), buffer_barrier);
+	}
+
+	void FxComputePass::update_uniform(vkb::CommandBuffer& command_buffer)
+	{
+
+	}
+
 	FxGraphSubpass::FxGraphSubpass(vkb::RenderContext& render_context, vkb::ShaderSource&& vertex_shader,
 		vkb::ShaderSource&& fragment_shader, vkb::sg::Camera& camera)
 		: Subpass(render_context, std::move(vertex_shader), std::move(fragment_shader)),
@@ -16,8 +108,7 @@ namespace siho
 
 	void FxGraphSubpass::prepare()
 	{
-		prepare_storage_buffers();
-
+		num_particles_ = 6* kParticleCount;
 		auto& resource_cache = render_context.get_device().get_resource_cache();
 		resource_cache.request_shader_module(VK_SHADER_STAGE_VERTEX_BIT, get_vertex_shader());
 		resource_cache.request_shader_module(VK_SHADER_STAGE_FRAGMENT_BIT, get_fragment_shader());
@@ -35,11 +126,12 @@ namespace siho
 
 	void FxGraphSubpass::draw(vkb::CommandBuffer& command_buffer)
 	{
-		/*vkb::BufferMemoryBarrier memory_barrier{};
-		memory_barrier.dst_access_mask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
-		memory_barrier.src_stage_mask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-		memory_barrier.src_stage_mask = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
-		command_buffer.buffer_memory_barrier()*/
+		vkb::BufferMemoryBarrier buffer_barrier{};
+		buffer_barrier.src_access_mask = 0;
+		buffer_barrier.dst_access_mask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+		buffer_barrier.src_stage_mask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+		buffer_barrier.dst_stage_mask = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+		//command_buffer.buffer_memory_barrier(*storage_buffer_, 0, storage_buffer_->get_size(), buffer_barrier);
 
 		update_uniform(command_buffer);
 
@@ -75,7 +167,7 @@ namespace siho
 		color_blend_attachment_state.src_alpha_blend_factor = VK_BLEND_FACTOR_SRC_ALPHA;
 		color_blend_attachment_state.dst_alpha_blend_factor = VK_BLEND_FACTOR_DST_ALPHA;
 		vkb::ColorBlendState color_blend_state;
-		color_blend_state.attachments= { color_blend_attachment_state };
+		color_blend_state.attachments = { color_blend_attachment_state };
 		command_buffer.set_color_blend_state(color_blend_state);
 
 		command_buffer.set_vertex_input_state(vertex_input_state_);
@@ -89,20 +181,31 @@ namespace siho
 		{
 			command_buffer.bind_image(textures_.particle.image->get_vk_image_view(),
 				*textures_.particle.sampler,
-				0, 0, 0);
+				0, layout_bingding->binding, 0);
 		}
 		if (auto layout_bingding = descriptor_set_layout.get_layout_binding("samplerGradientRamp"))
 		{
 			command_buffer.bind_image(textures_.gradient.image->get_vk_image_view(),
 				*textures_.gradient.sampler,
-				0, 1, 0);
+				0, layout_bingding->binding, 0);
 		}
 
 		command_buffer.draw(num_particles_, 1, 0, 0);
 
 		input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-		//command_buffer.set_input_assembly_state(input_assembly_state);
+		command_buffer.set_input_assembly_state(input_assembly_state);
 
+		buffer_barrier.src_access_mask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+		buffer_barrier.dst_access_mask = 0;
+		buffer_barrier.src_stage_mask = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+		buffer_barrier.dst_stage_mask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+		//command_buffer.buffer_memory_barrier(*storage_buffer_, 0, storage_buffer_->get_size(), buffer_barrier);
+
+	}
+
+	void FxGraphSubpass::set_storage_buffer(std::shared_ptr<vkb::core::Buffer> storage_buffer)
+	{
+		storage_buffer_ = std::move(storage_buffer);
 	}
 
 	void FxGraphSubpass::update_uniform(vkb::CommandBuffer& command_buffer)
@@ -126,7 +229,12 @@ namespace siho
 		command_buffer.bind_buffer(allocation.get_buffer(), allocation.get_offset(), allocation.get_size(), 0, 2, 0);
 	}
 
-	void FxGraphSubpass::prepare_storage_buffers()
+	std::shared_ptr<vkb::core::Buffer> FxComputePass::get_storage_buffer()
+	{
+		return storage_buffer_;
+	}
+
+	void FxComputePass::prepare_storage_buffers()
 	{
 		std::vector<glm::vec3> attractors = {
 		glm::vec3(5.0f, 0.0f, 0.0f),
@@ -137,14 +245,14 @@ namespace siho
 		glm::vec3(0.0f, -8.0f, 0.0f),
 		};
 
-		num_particles_ = static_cast<uint32_t>(attractors.size()) * kParticleCount;
+		num_particles = static_cast<uint32_t>(attractors.size()) * kParticleCount;
 
-		size_t vertex_data_size = num_particles_ * sizeof(Particle);
+		size_t vertex_data_size = num_particles * sizeof(Particle);
 
-		storage_buffer_ = std::make_shared<vkb::core::Buffer>(render_context.get_device(), vertex_data_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+		storage_buffer_ = std::make_shared<vkb::core::Buffer>(render_context_->get_device(), vertex_data_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
 		// Initial particle positions
-		std::vector<Particle> particle_buffer(num_particles_);
+		std::vector<Particle> particle_buffer(num_particles);
 
 		std::default_random_engine      rnd_engine(static_cast<unsigned>(time(nullptr)));
 		std::normal_distribution<float> rnd_distribution(0.0f, 1.0f);
@@ -176,7 +284,7 @@ namespace siho
 					particle.pos = glm::vec4(position, mass);
 					particle.vel = glm::vec4(velocity, 0.0f);
 				}
-				particle.pos = glm::mat4(200.0f)* particle.pos;
+				particle.pos = glm::mat4(150.0f) * particle.pos;
 
 				// Color gradient offset
 				particle.vel.w = static_cast<float>(i) * 1.0f / static_cast<uint32_t>(attractors.size());

@@ -27,11 +27,12 @@ namespace siho
 	public:
 		MainPass() = default;
 
-		void init(vkb::RenderContext& render_context, vkb::sg::Scene& scene, vkb::sg::Camera& camera, siho::ShadowRenderPass& shadow_render_pass);
+		void init(vkb::RenderContext& render_context, vkb::sg::Scene& scene, vkb::sg::Camera& camera, siho::ShadowRenderPass& shadow_render_pass, FxComputePass& fx_compute_pass);
 
 		void draw(vkb::CommandBuffer& command_buffer);
 
 		static std::unique_ptr<vkb::RenderTarget> create_render_target(vkb::core::Image&& swapchain_image);
+
 	private:
 		void create_render_pipeline(vkb::sg::Camera& camera, vkb::sg::Scene& scene);
 
@@ -42,6 +43,7 @@ namespace siho
 
 		vkb::RenderContext* render_context_{};
 		ShadowRenderPass* shadow_render_pass_;
+		FxComputePass* fx_compute_pass_;
 
 		ctpl::thread_pool thread_pool{ 1 };
 		uint32_t swapchain_attachment_index{ 0 };
