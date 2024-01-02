@@ -27,7 +27,7 @@ namespace siho
 
 	void LightingSubpass::draw(vkb::CommandBuffer& command_buffer)
 	{
-		command_buffer.push_constants(ShadowRenderPass::get_cascade_splits(dynamic_cast<const vkb::sg::PerspectiveCamera&>(camera)));
+		command_buffer.push_constants(shadow_render_pass_.get_cascade_splits());
 
 
 		command_buffer.bind_image(shadow_render_pass_.get_shadowmaps_view(), *shadowmap_sampler, 0, 5, 0);

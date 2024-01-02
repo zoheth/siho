@@ -94,19 +94,19 @@ void main()
 
 	vec4 albedo = subpassLoad(i_albedo);
 	uint cascade_i;
-	if(subpassLoad(i_depth).x > cascade_uniform.far_d.x)
+	if(subpassLoad(i_depth).x < cascade_uniform.far_d.z)
 	{
-		cascade_i = 0;
+		cascade_i = 2;
 		//albedo= vec4(0.8,0.2,0.3,1);
 	}
-	else if(subpassLoad(i_depth).x > cascade_uniform.far_d.y)
+	else if(subpassLoad(i_depth).x < cascade_uniform.far_d.y)
 	{
 		cascade_i = 1;
 		//albedo= vec4(0.2,0.8,0.3,1);
 	}
-	else if(subpassLoad(i_depth).x > cascade_uniform.far_d.z)
+	else if(subpassLoad(i_depth).x < cascade_uniform.far_d.x)
 	{
-		cascade_i = 2;
+		cascade_i = 0;
 		//albedo= vec4(0.2,0.3,0.8,1);
 	}
 

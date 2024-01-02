@@ -66,16 +66,16 @@ namespace siho
 
 		static std::unique_ptr<vkb::core::Sampler> create_shadowmap_sampler(vkb::RenderContext& render_context);
 
-		static glm::vec4 get_cascade_splits(const vkb::sg::PerspectiveCamera& camera);
+		glm::vec4 get_cascade_splits() const;
 	private:
-		static void update_light_camera(vkb::sg::OrthographicCamera& light_camera, vkb::sg::PerspectiveCamera& camera, uint32_t cascade_index);
+		void update_light_camera(vkb::sg::OrthographicCamera& light_camera, vkb::sg::PerspectiveCamera& camera, uint32_t cascade_index) const;
 		void create_render_targets();
 		void create_light_camera(vkb::sg::PerspectiveCamera& camera, vkb::sg::Light& light, vkb::sg::Scene& scene);
 		void create_shadow_render_pipelines(vkb::sg::Scene& scene);
 
 		void record_image_memory_barriers(vkb::CommandBuffer& command_buffer, vkb::RenderTarget& render_target);
 	private:
-		glm::vec4 cascade_splits_;
+		std::array<float, kCascadeCount + 1> cascade_splits_;
 		vkb::RenderContext* render_context_{};
 		vkb::sg::PerspectiveCamera* main_camera_{};
 

@@ -27,6 +27,7 @@ namespace siho
 
 		scene->clear_components<vkb::sg::Light>();
 
+		// vkb::sg::Node sun_node{ -1, "sun node" };
 		auto& directional_light = vkb::add_directional_light(*scene, glm::quat({ glm::radians(-43.0f), glm::radians(-89.0f), glm::radians(-43.0f) }));
 		directional_light_ = &directional_light;
 

@@ -127,7 +127,7 @@ namespace siho
 	ShadowUniform ShadowRenderPass::get_shadow_uniform() const
 	{
 		ShadowUniform uniform;
-		for(uint32_t i = 0; i < kCascadeCount; i++)
+		for (uint32_t i = 0; i < kCascadeCount; i++)
 		{
 			uniform.shadowmap_projection_matrix[i] = vkb::vulkan_style_projection(cascades_[i].light_camera->get_projection()) * cascades_[i].light_camera->get_view();
 		}
@@ -153,28 +153,28 @@ namespace siho
 		return std::make_unique<vkb::core::Sampler>(render_context.get_device(), shadowmap_sampler_create_info);
 	}
 
-	glm::vec4 ShadowRenderPass::get_cascade_splits(const vkb::sg::PerspectiveCamera& camera)
+	glm::vec4 ShadowRenderPass::get_cascade_splits() const
 	{
 		glm::vec4 splits;
-		splits.x = calculate_cascade_split_depth(1, 3, camera);
-		splits.y = calculate_cascade_split_depth(2, 3, camera);
-		splits.z = calculate_cascade_split_depth(3, 3, camera);
+		splits.x = cascade_splits_[0];
+		splits.y = cascade_splits_[1];
+		splits.z = cascade_splits_[2];
 
 		return splits;
 	}
 
 	void ShadowRenderPass::update_light_camera(vkb::sg::OrthographicCamera& light_camera,
-		vkb::sg::PerspectiveCamera& camera, uint32_t cascade_index)
+		vkb::sg::PerspectiveCamera& camera, uint32_t cascade_index) const
 	{
-		assert(cascade_index < kCascadeCount && cascade_index >= 0);
-		glm::mat4 inverse_view_projection = glm::inverse(vkb::vulkan_style_projection(camera.get_projection()) * camera.get_view());
+		assert(cascade_index < kCascadeCount);
+		glm::mat4 inverse_view_projection = glm::inverse(camera.get_projection() * camera.get_view());
 		std::vector<glm::vec3> corners(8);
 		for (uint32_t i = 0; i < 8; i++)
 		{
 			glm::vec4 homogenous_corner = glm::vec4(
 				(i & 1) ? 1.0f : -1.0f,
 				(i & 2) ? 1.0f : -1.0f,
-				(i & 4) ? calculate_cascade_split_depth(cascade_index, kCascadeCount, camera) : calculate_cascade_split_depth(cascade_index + 1, kCascadeCount, camera),
+				(i & 4) ? cascade_splits_[cascade_index] : cascade_splits_[cascade_index+1],
 				//(i & 4) ? 1.0f : 0.0f,
 				1.0f);
 
@@ -182,23 +182,20 @@ namespace siho
 			corners[i] = glm::vec3(world_corner) / world_corner.w;
 		}
 
-		glm::mat4 invert_y = glm::mat4(
-			1.0f, 0.0f, 0.0f, 0.0f,
-			0.0f, -1.0f, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f, 0.0f,
-			0.0f, 0.0f, 0.0f, 1.0f);
-
-		glm::mat4 light_view_mat = invert_y * light_camera.get_view();
+		glm::mat4 light_view_mat = light_camera.get_view();
 
 		for (auto& corner : corners)
 		{
 			corner = light_view_mat * glm::vec4(corner, 1.0f);
 		}
 
-		glm::vec3 min_bounds = glm::vec3(FLT_MAX), max_bounds(-FLT_MAX);
+		glm::vec3 min_bounds = glm::vec3(FLT_MAX), max_bounds(FLT_MIN);
 
-		for (const auto& corner : corners)
+		for (auto& corner : corners)
 		{
+			// In vulkan, clip space has inverted Y and depth range, so we need to flip the Y and Z axis
+			corner.y = -corner.y;
+			corner.z = -corner.z;
 			min_bounds = glm::min(min_bounds, corner);
 			max_bounds = glm::max(max_bounds, corner);
 		}
@@ -216,14 +213,14 @@ namespace siho
 	{
 		auto& device = render_context_->get_device();
 
-		for(uint32_t i = 0; i < kCascadeCount; i++)
+		for (uint32_t i = 0; i < kCascadeCount; i++)
 		{
 			cascades_[i].shadow_render_targets.resize(render_context_->get_render_frames().size());
 		}
 
 		VkExtent3D extent{ shadowmap_resolution_, shadowmap_resolution_, 1 };
 
-		for(uint32_t j = 0; j < render_context_->get_render_frames().size(); j++)
+		for (uint32_t j = 0; j < render_context_->get_render_frames().size(); j++)
 		{
 			// For every frame
 			// Create a depth image for each frame, used for shadow mapping.
@@ -268,6 +265,14 @@ namespace siho
 			light.get_node()->set_component(*light_camera_ptr);
 			scene.add_component(std::move(light_camera_ptr));
 		}
+
+		cascade_splits_ = {
+			calculate_cascade_split_depth(0, kCascadeCount, camera),
+			calculate_cascade_split_depth(1, kCascadeCount, camera),
+			calculate_cascade_split_depth(2, kCascadeCount, camera),
+			0.0f
+		};
+
 	}
 
 	void ShadowRenderPass::create_shadow_render_pipelines(vkb::sg::Scene& scene)
