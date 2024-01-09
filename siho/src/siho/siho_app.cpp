@@ -133,6 +133,18 @@ namespace siho
 			lines);
 	}
 
+	void SihoApplication::request_gpu_features(vkb::PhysicalDevice& gpu)
+	{
+		if (gpu.get_features().depthClamp)
+		{
+			gpu.get_mutable_requested_features().depthClamp = VK_TRUE;
+		}
+		if (gpu.get_features().samplerAnisotropy)
+		{
+			gpu.get_mutable_requested_features().samplerAnisotropy = VK_TRUE;
+		}
+	}
+
 	void SihoApplication::prepare_render_context()
 	{
 		get_render_context().prepare(2, [this](vkb::core::Image&& swapchain_image)

@@ -23,6 +23,8 @@ namespace siho
 		void update(float delta_time) override;
 		void draw_gui() override;
 		virtual ~SihoApplication() = default;
+
+		virtual void request_gpu_features(vkb::PhysicalDevice &gpu) override;
 	private:
 		void prepare_render_context() override;
 		// void draw_renderpass(vkb::CommandBuffer& command_buffer, vkb::RenderTarget& render_target) override;
