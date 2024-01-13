@@ -22,10 +22,14 @@ include(android_package)
 project(siho LANGUAGES C CXX)
 
 
-set(SRC
-    
-    main.cpp
-    "src/siho/core/application.cpp" "src/siho/core/application.h" "src/siho/passes/shadow_pass.cpp"  "src/siho/passes/shadow_pass.h" "src/siho/passes/particles_pass.cpp" "src/siho/passes/particles_pass.h" "src/siho/siho_app.cpp" "src/siho/siho_app.h" "src/siho/passes/main_pass.h" "src/siho/passes/main_pass.cpp" "src/siho/passes/test_pass.cpp" "src/siho/passes/test_pass.h" "src/siho/passes/pass_common.h" "src/siho/passes/pass_common.cpp" "src/siho/siho_app_v2.cpp" "src/siho/siho_app_v2.h")
+# set(SRC 
+#     main.cpp
+#     "src/siho/core/application.cpp" "src/siho/core/application.h" "src/siho/passes/shadow_pass.cpp"  "src/siho/passes/shadow_pass.h" "src/siho/passes/particles_pass.cpp" "src/siho/passes/particles_pass.h" "src/siho/siho_app.cpp" "src/siho/siho_app.h" "src/siho/passes/main_pass.h" "src/siho/passes/main_pass.cpp" "src/siho/passes/test_pass.cpp" "src/siho/passes/test_pass.h" "src/siho/passes/pass_common.h" "src/siho/passes/pass_common.cpp" "src/siho/siho_app_v2.cpp" "src/siho/siho_app_v2.h")
+set(SRC 
+ "main.cpp" 
+ "src/siho/siho_app.cpp"
+ "src/siho/siho_app.h"
+ "src/siho/passes/master_pass.cpp" "src/siho/passes/master_pass.h")
 
 source_group("\\" FILES ${SRC})
 
