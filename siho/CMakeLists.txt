@@ -29,7 +29,7 @@ set(SRC
  "main.cpp" 
  "src/siho/siho_app.cpp"
  "src/siho/siho_app.h"
- "src/siho/passes/master_pass.cpp" "src/siho/passes/master_pass.h")
+ "src/siho/passes/master_pass.cpp" "src/siho/passes/master_pass.h" "src/siho/passes/shadow_pass.cpp" "src/siho/passes/shadow_pass.h")
 
 source_group("\\" FILES ${SRC})
 

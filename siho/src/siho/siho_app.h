@@ -5,26 +5,11 @@
 #include "scene_graph/components/camera.h"
 #include "scene_graph/components/perspective_camera.h"
 
+#include "siho/passes/master_pass.h"
+
 namespace siho
 {
-	class MainPass
-	{
-	public:
-		MainPass() = default;
 
-	};
-	;
-	class ShadowPass
-	{
-	public:
-		ShadowPass() = default;
-
-	};
-	class ParticlesPass
-	{
-	public:
-		ParticlesPass() = default;
-	};
 	class SihoApp : public vkb::VulkanSample
 	{
 	public:
@@ -39,13 +24,10 @@ namespace siho
 		virtual void finish() override;
 
 	private:
-		virtual void draw_gui() override;
+		void prepare_render_context() override;
 
 
 		vkb::sg::PerspectiveCamera* camera_{ nullptr };
-		ShadowPass shadow_pass_;
-		MainPass main_pass_;
-		ParticlesPass particles_pass_;
 
 		vkb::sg::Light* directional_light_;
 	};

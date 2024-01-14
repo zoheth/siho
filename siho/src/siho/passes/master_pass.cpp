@@ -1,5 +1,8 @@
 #include "master_pass.h"
 
+#include "rendering/render_pipeline.h"
+#include "rendering/subpasses/geometry_subpass.h"
+
 namespace siho
 {
 	LightingSubpass::LightingSubpass(vkb::RenderContext& render_context, vkb::ShaderSource&& vertex_shader,
@@ -73,7 +76,97 @@ namespace siho
 		allocation.update(light_uniform);
 		command_buffer.bind_buffer(allocation.get_buffer(), allocation.get_offset(), allocation.get_size(), 0, 3, 0);
 
-		// Draw full screen triangle triangle
+
+
+		// Draw full screen triangle
 		command_buffer.draw(3, 1, 0, 0);
+	}
+
+	MasterPass::MasterPass(vkb::RenderContext& render_context, vkb::sg::Camera& camera, vkb::sg::Scene& scene)
+	{
+
+	}
+
+	std::unique_ptr<vkb::RenderTarget> MasterPass::create_render_target(vkb::core::Image&& swapchain_image)
+	{
+		auto& device = swapchain_image.get_device();
+		auto& extent = swapchain_image.get_extent();
+
+		// G-Buffer should fit 128-bit budget for buffer color storage
+		// in order to enable subpasses merging by the driver
+		// Light (swapchain_image) RGBA8_UNORM   (32-bit)
+		// Albedo                  RGBA8_UNORM   (32-bit)
+		// Normal                  RGB10A2_UNORM (32-bit)
+
+		VkFormat          albedo_format{ VK_FORMAT_R8G8B8A8_UNORM };
+		VkFormat          normal_format{ VK_FORMAT_A2B10G10R10_UNORM_PACK32 };
+		VkImageUsageFlags rt_usage_flags{ VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT };
+
+		vkb::core::Image depth_image{ device,extent,
+			vkb::get_suitable_depth_format(swapchain_image.get_device().get_gpu().get_handle()),
+			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | rt_usage_flags,
+			VMA_MEMORY_USAGE_GPU_ONLY
+		};
+
+		vkb::core::Image albedo_image{ device,extent,
+			albedo_format,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | rt_usage_flags,
+			VMA_MEMORY_USAGE_GPU_ONLY
+		};
+
+		vkb::core::Image normal_image{ device,extent,
+			normal_format,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | rt_usage_flags,
+			VMA_MEMORY_USAGE_GPU_ONLY
+		};
+
+		vkb::core::Image light_image{ device,extent,
+			albedo_format,
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | rt_usage_flags,
+			VMA_MEMORY_USAGE_GPU_ONLY
+		};
+
+		std::vector<vkb::core::Image> images;
+
+		// Attachment 0
+		images.push_back(std::move(swapchain_image));
+
+		// Attachment 1
+		images.push_back(std::move(depth_image));
+
+		// Attachment 2
+		images.push_back(std::move(albedo_image));
+
+		// Attachment 3
+		images.push_back(std::move(normal_image));
+
+		return std::make_unique<vkb::RenderTarget>(std::move(images));
+	}
+
+	void MasterPass::create_render_pipeline(vkb::sg::Camera& camera, vkb::sg::Scene& scene)
+	{
+		// Geometry subpass
+		auto geometry_vs = vkb::ShaderSource{ "deferred/geometry.vert" };
+		auto geometry_fs = vkb::ShaderSource{ "deferred/geometry.frag" };
+		auto scene_subpass = std::make_unique<vkb::GeometrySubpass>(*render_context_, std::move(geometry_vs), std::move(geometry_fs), scene, camera);
+
+		// Outputs are depth, albedo, normal
+		scene_subpass->set_output_attachments({ 1, 2, 3 });
+
+		auto lighting_vs = vkb::ShaderSource{ "deferred/lighting.vert" };
+		auto lighting_fs = vkb::ShaderSource{ "deferred/lighting.frag" };
+		auto lighting_subpass = std::make_unique<LightingSubpass>(*render_context_, std::move(lighting_vs), std::move(lighting_fs), camera, scene);
+		lighting_subpass->set_disable_depth_stencil_attachment(true);
+		lighting_subpass->set_input_attachments({ 1, 2, 3 });
+
+
+		std::vector<std::unique_ptr<vkb::Subpass>> subpasses{};
+		subpasses.push_back(std::move(scene_subpass));
+		subpasses.push_back(std::move(lighting_subpass));
+
+		render_pipeline_ = std::make_unique<vkb::RenderPipeline>(std::move(subpasses));
+
+		render_pipeline_->set_load_store(vkb::gbuffer::get_clear_all_store_swapchain());
+		render_pipeline_->set_clear_value(vkb::gbuffer::get_clear_value());
 	}
 }

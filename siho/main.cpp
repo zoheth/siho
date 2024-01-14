@@ -19,7 +19,7 @@
 #include "platform/platform.h"
 #include "platform/application.h"
 
-#include <core/platform/entrypoint.hpp>
+#include "core/platform/entrypoint.hpp"
 
 #if defined(PLATFORM__ANDROID)
 #	include "platform/android/android_platform.h"

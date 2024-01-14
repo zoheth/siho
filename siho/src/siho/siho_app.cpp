@@ -50,4 +50,12 @@ namespace siho
 		auto& camera_node = vkb::add_free_camera(*scene, "main_camera", get_render_context().get_surface_extent());
 		camera_ = dynamic_cast<vkb::sg::PerspectiveCamera*>(&camera_node.get_component<vkb::sg::Camera>());
 	}
+
+	void SihoApp::prepare_render_context()
+	{
+		get_render_context().prepare(1, [this](vkb::core::Image&& swapchain_image)
+			{
+				return MasterPass::create_render_target(std::move(swapchain_image));
+			});
+	}
 }

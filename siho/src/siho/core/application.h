@@ -3,7 +3,7 @@
 namespace siho
 {
 
-	class Application
+	class Application : 
 	{
 	public:
 		Application() = default;
