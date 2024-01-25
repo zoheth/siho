@@ -2,4 +2,8 @@
 
 namespace siho
 {
+	Application::~Application()
+	{
+		if (device)
+	}
 }

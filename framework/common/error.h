@@ -21,6 +21,8 @@
 #include <stdexcept>
 #include <string>
 
+#include <vulkan/vulkan.hpp>
+
 #include "common/strings.h"
 #include "logging.h"
 #include "vk_common.h"
@@ -78,6 +80,21 @@ class VulkanException : public std::runtime_error
   private:
 	std::string error_message;
 };
+namespace common
+{
+	/**
+	 * @brief facade class around vkb::VulkanException, providing a vulkan.hpp-based interface
+	 *
+	 * See vkb::VulkanException for documentation
+	 */
+	class HPPVulkanException : private vkb::VulkanException
+	{
+	public:
+		HPPVulkanException(vk::Result result, std::string const& msg = "Vulkan error") :
+			vkb::VulkanException(static_cast<VkResult>(result), msg)
+		{}
+	};
+}        // namespace common
 }        // namespace vkb
 
 /// @brief Helper macro to test the result of Vulkan calls which can return an error.
